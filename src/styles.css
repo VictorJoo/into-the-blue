@@ -107,8 +107,32 @@ button { color: inherit; }
 }
 .people span:nth-child(2) { background: #6d8b84; }
 .people span:nth-child(3) { background: #d88b75; }
-.people img, .account-button img, .avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.people img, .account-button img, .account-menu-avatar img, .avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .account-button { display: grid; place-items: center; width: 34px; height: 34px; overflow: hidden; padding: 0; border: 2px solid white; border-radius: 50%; background: #6d8b84; color: white; font-size: 11px; font-weight: 800; cursor: pointer; }
+.account-menu-wrap { position: relative; z-index: 1003; }
+.account-menu-backdrop { position: fixed; z-index: 1000; inset: 72px 0 0; border: 0; background: transparent; cursor: default; }
+.account-menu { position: absolute; z-index: 1004; top: calc(100% + 13px); right: 0; width: min(320px, calc(100vw - 24px)); overflow: hidden; border: 1px solid #ddd8ce; border-radius: 16px; background: #fffdf8; box-shadow: 0 22px 60px rgba(25,54,45,.24); }
+.account-menu-profile { display: flex; align-items: center; gap: 11px; padding: 15px 16px; border-bottom: 1px solid #ebe6dd; background: #f5f3ec; }
+.account-menu-avatar { display: grid; place-items: center; flex: none; width: 38px; height: 38px; overflow: hidden; border-radius: 50%; background: #6d8b84; color: white; font-size: 12px; font-weight: 800; }
+.account-menu-profile > div:last-child { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.account-menu-profile strong { overflow: hidden; color: var(--forest); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-profile span { color: #89918c; font-size: 8px; }
+.account-menu-heading { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 7px; }
+.account-menu-heading span { color: var(--forest); font-size: 9px; font-weight: 800; }
+.account-menu-heading small { color: #a1a7a3; font-size: 7px; }
+.account-trip-list { max-height: min(330px, calc(100vh - 245px)); overflow-y: auto; padding: 0 7px 7px; }
+.account-trip-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; border-radius: 10px; }
+.account-trip-row:hover, .account-trip-row.is-current { background: #f0f4ef; }
+.account-trip-select { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 7px; min-width: 0; padding: 10px 8px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.account-trip-check { display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid #d8ddd6; border-radius: 50%; color: var(--forest); font-size: 9px; font-weight: 900; }
+.account-trip-row.is-current .account-trip-check { border-color: #bcd1c2; background: #dcebe0; }
+.account-trip-select > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.account-trip-select strong { overflow: hidden; color: #33463f; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.account-trip-select small { color: #8c9590; font-size: 8px; }
+.account-trip-delete { margin-right: 7px; padding: 6px 7px; border: 0; border-radius: 7px; background: transparent; color: #b56b5e; font-size: 8px; cursor: pointer; }
+.account-trip-delete:hover { background: #fbe9e5; }
+.account-signout { width: 100%; padding: 12px 15px; border: 0; border-top: 1px solid #ebe6dd; background: white; color: #69746e; font-size: 9px; font-weight: 700; text-align: left; cursor: pointer; }
+.account-signout:hover { background: #f7f5ef; }
 .share-button {
   display: flex;
   align-items: center;
@@ -304,23 +328,21 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
 .candidate-marker { display: block; width: 14px; height: 14px; border: 3px solid rgba(255,255,255,.94); border-radius: 50%; background: #8d9993; box-shadow: 0 3px 10px rgba(31,54,47,.28); }
 .candidate-popup .leaflet-popup-content-wrapper { opacity: .94; }
 .place-popup .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 10px 35px rgba(25,54,45,.18); }
-.place-popup .leaflet-popup-content { display: flex; flex-direction: column; margin: 11px 14px; color: var(--forest); }
+.place-popup .leaflet-popup-content { margin: 9px 10px; color: var(--forest); }
+.map-popup-content { display: flex; min-width: 190px; flex-direction: column; gap: 9px; }
+.map-popup-copy { display: flex; flex-direction: column; }
 .place-popup strong { font-family: "Gowun Batang", serif; font-size: 14px; }
 .place-popup small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.map-popup-actions { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid #ebe7df; }
+.map-popup-actions a, .map-popup-actions button { flex: 1; padding: 7px 9px; border: 0; border-radius: 8px; background: #f5eee6; color: #8b6f62; font-size: 9px; font-weight: 700; line-height: 1; text-align: center; text-decoration: none; cursor: pointer; }
+.map-popup-actions a { background: #fbf3df; color: #9a712d; }
+.map-popup-actions button:hover, .map-popup-actions a:hover { filter: brightness(.97); }
 
 .map-overlay-top { position: absolute; z-index: 500; top: 22px; left: 25px; right: 25px; display: flex; justify-content: space-between; pointer-events: none; }
 .route-legend { display: flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid rgba(255,255,255,.6); border-radius: 10px; background: rgba(255,252,246,.92); box-shadow: 0 8px 24px rgba(30,54,47,.13); color: var(--forest); font-size: 10px; font-weight: 700; backdrop-filter: blur(9px); }
 .route-legend small { padding-left: 8px; border-left: 1px solid #ddd7cb; color: #89918c; font-size: 8px; font-weight: 500; }
 .route-line { width: 22px; height: 3px; border-radius: 4px; background: var(--coral); }
 .mobile-schedule-button { display: none; pointer-events: auto; }
-.selected-place-card { position: absolute; z-index: 500; left: 50%; bottom: 30px; display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 12px; min-width: 305px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.7); border-radius: 15px; transform: translateX(-50%); background: rgba(255,252,246,.95); box-shadow: 0 12px 35px rgba(28, 56, 47, .2); backdrop-filter: blur(10px); }
-.selected-index { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--forest); color: white; font-family: "Gowun Batang", serif; }
-.selected-place-card > div:nth-child(2) { display: flex; flex-direction: column; gap: 2px; }
-.selected-place-card small { color: #8b938e; font-size: 8px; }
-.selected-place-card strong { color: var(--forest); font-family: "Gowun Batang", serif; font-size: 14px; }
-.selected-actions { display: flex; align-items: center; gap: 5px; }
-.selected-actions > a, .selected-place-card button { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 30px; height: 30px; padding: 8px; border: 0; border-radius: 8px; background: #f5eee6; color: #967d71; font-size: 10px; text-decoration: none; cursor: pointer; }
-.selected-actions > a { background: #fbf3df; color: #b48231; }
 .map-credit { position: absolute; z-index: 500; right: 18px; bottom: 12px; color: rgba(38, 59, 52, .58); font-size: 8px; }
 
 .popover-backdrop { position: fixed; z-index: 1100; inset: 0; border: 0; background: rgba(18, 42, 35, .22); backdrop-filter: blur(2px); }
@@ -431,6 +453,10 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
 .delete-actions .delete-all { border-color: #e9c7c1; background: #fff3f0; color: #b55647; }
 .delete-actions .promote-next { border-color: var(--forest); background: var(--forest); color: white; }
 .delete-actions.is-simple { grid-template-columns: 1fr 1.25fr; margin-top: 18px; }
+.trip-delete-actions { display: grid; grid-template-columns: .8fr 1.2fr; gap: 8px; margin-top: 20px; }
+.trip-delete-actions button { padding: 11px 8px; border: 1px solid #ded9cf; border-radius: 9px; background: white; color: #6f7974; font-size: 9px; font-weight: 700; cursor: pointer; }
+.trip-delete-actions .delete-all { border-color: #e9c7c1; background: #fff3f0; color: #b55647; }
+.trip-delete-actions button:disabled { opacity: .55; cursor: wait; }
 .mobile-view-switcher { display: none; }
 
 @media (max-width: 1060px) {
@@ -440,6 +466,7 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
 
 @media (max-width: 839px) {
   body { overflow: hidden; }
+  .account-menu-backdrop { inset: 60px 0 0; }
   .app-shell { display: grid; grid-template: 60px calc(100dvh - 60px) / 1fr; }
   .topbar { grid-column: 1; grid-template-columns: auto minmax(0, 1fr) auto; height: 60px; padding: 0 12px 0 14px; }
   .brand { padding-left: 0; font-size: 0; }
@@ -471,7 +498,6 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
   .map-overlay-top { top: 16px; left: 14px; right: 14px; }
   .mobile-schedule-button { display: flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid rgba(255,255,255,.7); border-radius: 10px; background: rgba(255,252,246,.94); box-shadow: 0 8px 24px rgba(30,54,47,.13); color: var(--forest); font-size: 11px; font-weight: 700; }
   .route-legend small { display: none; }
-  .selected-place-card { bottom: 84px; min-width: min(360px, calc(100vw - 28px)); }
   .map-credit { display: none; }
   .map-provider-note { left: 14px; bottom: 146px; }
   .comment-popover, .note-popover { top: auto; left: 12px; right: 12px; bottom: 76px; width: auto; max-height: min(560px, calc(100dvh - 148px)); border-radius: 20px; }
@@ -504,9 +530,6 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
   .candidate-main { min-height: 52px; }
   .route-legend { padding: 10px; }
   .route-legend small { display: none; }
-  .selected-place-card { grid-template-columns: 36px 1fr auto; gap: 9px; bottom: 78px; padding: 9px; }
-  .selected-index { width: 36px; height: 36px; }
-  .selected-place-card strong { font-size: 12px; }
   .map-provider-note { display: none; }
   .delete-actions { grid-template-columns: 1fr; }
   .delete-actions.is-simple { grid-template-columns: 1fr 1fr; }
