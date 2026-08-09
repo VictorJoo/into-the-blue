@@ -11,6 +11,25 @@ pnpm dev
 
 프로덕션 빌드는 `pnpm build`로 생성합니다.
 
+## Supabase 협업 기능 적용
+
+로그인, 여행 초대, 작성자 표시와 공동 저장을 사용하려면 Supabase Dashboard의 **SQL Editor**에서
+[`supabase/migrations/202608100001_collaboration.sql`](supabase/migrations/202608100001_collaboration.sql)을 실행합니다.
+
+필수 공개 환경변수는 `.env.example`을 참고해 로컬 `.env.local`과 Cloudflare Workers Builds에 설정합니다.
+
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_ME
+```
+
+카카오 OAuth 복귀를 위해 Supabase **Authentication → URL Configuration**에 로컬 주소와 운영 주소를 허용합니다.
+
+```text
+http://localhost:5173/**
+https://into-the-blue.<account-subdomain>.workers.dev/**
+```
+
 ## 주요 기능
 
 - 시간순 일정과 현재 시간 진행 표시

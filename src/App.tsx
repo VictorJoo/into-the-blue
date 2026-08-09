@@ -1,21 +1,15 @@
 import { CSSProperties, DragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { initialPlaces } from "./data";
+import { signOut } from "./lib/auth";
+import { supabase } from "./lib/supabase";
 import MapView from "./MapView";
 import type { Candidate, DragItem, Place } from "./types";
+import { useWorkspace } from "./workspace";
 
-type Comment = { id: number; name: string; content: string; createdAt: string };
+type Comment = { id: string; userId: string; name: string; avatarUrl?: string; content: string; createdAt: string };
 type CommentsByPlace = Record<string, Comment[]>;
 type SchedulesByDate = Record<string, Place[]>;
 type NoteTarget = { placeId: string; candidateId?: string };
 type DeleteTarget = { placeId: string; candidateId?: string };
-
-const seedComments: CommentsByPlace = {
-  eiffel: [
-    { id: 1, name: "민지", content: "오전 입장권으로 미리 예약해두면 좋겠어요!", createdAt: "어제" },
-    { id: 2, name: "준호", content: "트로카데로에서 단체 사진 먼저 찍어요.", createdAt: "3시간 전" },
-  ],
-  flore: [{ id: 3, name: "유나", content: "테라스 자리 기다려도 좋아요 ☕", createdAt: "1시간 전" }],
-};
 
 function minutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -43,6 +37,15 @@ function relativeDateLabel(value: string, today: string) {
   if (difference === -1) return "어제";
   if (difference === 1) return "내일";
   return formatDate(value, { month: "long", day: "numeric" });
+}
+
+function formatCommentTime(value: string) {
+  const date = new Date(value);
+  const difference = Date.now() - date.getTime();
+  if (difference < 60_000) return "방금";
+  if (difference < 3_600_000) return `${Math.floor(difference / 60_000)}분 전`;
+  if (difference < 86_400_000) return `${Math.floor(difference / 3_600_000)}시간 전`;
+  return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(date);
 }
 
 function sortCandidates(items: Candidate[]) {
@@ -279,21 +282,27 @@ function AddPlacePanel({
 function CommentPopover({
   place,
   comments,
+  userName,
+  avatarUrl,
   onClose,
   onAdd,
 }: {
   place: Place;
   comments: Comment[];
+  userName: string;
+  avatarUrl?: string;
   onClose: () => void;
-  onAdd: (name: string, content: string) => void;
+  onAdd: (content: string) => Promise<void>;
 }) {
-  const [name, setName] = useState("");
   const [content, setContent] = useState("");
-  const submit = (event: FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim() || !content.trim()) return;
-    onAdd(name.trim(), content.trim());
+    if (!content.trim() || submitting) return;
+    setSubmitting(true);
+    await onAdd(content.trim());
     setContent("");
+    setSubmitting(false);
   };
 
   return (
@@ -301,9 +310,9 @@ function CommentPopover({
       <div className="popover-heading"><div><span className="eyebrow">함께 정하기</span><h3>{place.title} 댓글</h3></div><button className="icon-button" onClick={onClose} aria-label="댓글 닫기">×</button></div>
       <div className="comment-list">
         {comments.length === 0 && <p className="empty-comment">첫 의견을 남겨보세요.</p>}
-        {comments.map((comment) => <article className="comment" key={comment.id}><div className="avatar">{comment.name.slice(0, 1)}</div><div><div className="comment-meta"><strong>{comment.name}</strong><span>{comment.createdAt}</span></div><p>{comment.content}</p></div></article>)}
+        {comments.map((comment) => <article className="comment" key={comment.id}><div className="avatar">{comment.avatarUrl ? <img src={comment.avatarUrl} alt="" /> : comment.name.slice(0, 1)}</div><div><div className="comment-meta"><strong>{comment.name}</strong><span>{comment.createdAt}</span></div><p>{comment.content}</p></div></article>)}
       </div>
-      <form className="comment-form" onSubmit={submit}><input value={name} onChange={(event) => setName(event.target.value)} placeholder="이름" aria-label="이름" maxLength={16} /><div className="comment-input-row"><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="의견을 남겨주세요" aria-label="댓글 내용" rows={2} maxLength={160} /><button type="submit" disabled={!name.trim() || !content.trim()} aria-label="댓글 등록">↑</button></div></form>
+      <form className="comment-form" onSubmit={submit}><div className="comment-author"><div className="avatar small">{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</div><strong>{userName}</strong><span>으로 작성</span></div><div className="comment-input-row"><textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="의견을 남겨주세요" aria-label="댓글 내용" rows={2} maxLength={160} /><button type="submit" disabled={!content.trim() || submitting} aria-label="댓글 등록">↑</button></div></form>
     </div>
   );
 }
@@ -370,24 +379,15 @@ function DeleteDialog({
 }
 
 export default function App() {
+  const { user, userName, avatarUrl, trip, role, members } = useWorkspace();
   const today = dateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [lastAddDate, setLastAddDate] = useState(() => {
     const saved = localStorage.getItem("into-the-blue-last-add-date");
     return saved && /^\d{4}-\d{2}-\d{2}$/.test(saved) ? saved : today;
   });
-  const [schedules, setSchedules] = useState<SchedulesByDate>(() => {
-    try {
-      const saved = localStorage.getItem("into-the-blue-schedules-v3");
-      if (saved) {
-        const parsed = JSON.parse(saved) as SchedulesByDate;
-        return Object.fromEntries(Object.entries(parsed).map(([date, items]) => [date, sortPlaces(items)]));
-      }
-      const legacy = localStorage.getItem("into-the-blue-itinerary-v2");
-      return { [today]: legacy ? sortPlaces(JSON.parse(legacy)) : initialPlaces };
-    } catch { return { [today]: initialPlaces }; }
-  });
-  const [selectedId, setSelectedId] = useState(schedules[today]?.[0]?.id ?? "");
+  const [schedules, setSchedules] = useState<SchedulesByDate>({});
+  const [selectedId, setSelectedId] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [commentPlace, setCommentPlace] = useState<string | null>(null);
   const [mobileSchedule, setMobileSchedule] = useState(false);
@@ -404,14 +404,10 @@ export default function App() {
   });
   const [resizing, setResizing] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-  const [comments, setComments] = useState<CommentsByPlace>(() => {
-    try { return JSON.parse(localStorage.getItem("into-the-blue-comments") ?? "null") ?? seedComments; }
-    catch { return seedComments; }
-  });
-  const [listTitles, setListTitles] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem("into-the-blue-list-titles") ?? "{}"); }
-    catch { return {}; }
-  });
+  const [comments, setComments] = useState<CommentsByPlace>({});
+  const [listTitles, setListTitles] = useState<Record<string, string>>({});
+  const [dataReady, setDataReady] = useState(false);
+  const [dataError, setDataError] = useState("");
   const [editingListTitle, setEditingListTitle] = useState(false);
   const [listTitleDraft, setListTitleDraft] = useState("");
 
@@ -428,14 +424,84 @@ export default function App() {
   const scheduledDates = useMemo(() => Object.entries(schedules).filter(([, items]) => items.length > 0).map(([date]) => date).sort(), [schedules]);
   const previousDate = [...scheduledDates].reverse().find((date) => date < selectedDate);
   const nextDate = scheduledDates.find((date) => date > selectedDate);
-  const currentListTitle = listTitles[selectedDate] ?? "서라벌에서 보내는 하루";
+  const currentListTitle = listTitles[selectedDate] ?? "새 여행 일정";
   const rangeDates = scheduledDates.length ? scheduledDates : [selectedDate];
   const tripDateRange = rangeDates[0] === rangeDates[rangeDates.length - 1]
     ? formatTripDate(rangeDates[0])
     : `${formatTripDate(rangeDates[0])} ~ ${formatTripDate(rangeDates[rangeDates.length - 1])}`;
 
-  useEffect(() => { localStorage.setItem("into-the-blue-schedules-v3", JSON.stringify(schedules)); }, [schedules]);
-  useEffect(() => { localStorage.setItem("into-the-blue-list-titles", JSON.stringify(listTitles)); }, [listTitles]);
+  useEffect(() => {
+    for (const key of ["into-the-blue-schedules-v3", "into-the-blue-itinerary-v2", "into-the-blue-comments", "into-the-blue-list-titles"]) localStorage.removeItem(key);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTripData = async () => {
+      setDataReady(false);
+      setDataError("");
+      const [{ data: documents, error: documentError }, { data: commentRows, error: commentError }] = await Promise.all([
+        supabase.from("trip_documents").select("trip_date,list_title,schedule").eq("trip_id", trip.id).order("trip_date"),
+        supabase.from("comments").select("id,place_id,user_id,content,created_at").eq("trip_id", trip.id).order("created_at"),
+      ]);
+      if (cancelled) return;
+      if (documentError || commentError) {
+        setDataError("여행 데이터를 불러오지 못했습니다. Supabase 마이그레이션을 확인해주세요.");
+        setDataReady(true);
+        return;
+      }
+      const nextSchedules: SchedulesByDate = {};
+      const nextTitles: Record<string, string> = {};
+      for (const document of documents ?? []) {
+        nextSchedules[document.trip_date] = sortPlaces((document.schedule ?? []) as Place[]);
+        nextTitles[document.trip_date] = document.list_title;
+      }
+      const authorIds = [...new Set((commentRows ?? []).map((comment) => comment.user_id))];
+      const { data: authorProfiles } = authorIds.length
+        ? await supabase.from("profiles").select("id,nickname,avatar_url").in("id", authorIds)
+        : { data: [] };
+      const authors = new Map((authorProfiles ?? []).map((profile) => [profile.id, profile]));
+      const nextComments: CommentsByPlace = {};
+      for (const comment of commentRows ?? []) {
+        const author = authors.get(comment.user_id);
+        const item: Comment = {
+          id: comment.id,
+          userId: comment.user_id,
+          name: author?.nickname || "여행자",
+          avatarUrl: author?.avatar_url ?? undefined,
+          content: comment.content,
+          createdAt: formatCommentTime(comment.created_at),
+        };
+        nextComments[comment.place_id] = [...(nextComments[comment.place_id] ?? []), item];
+      }
+      setSchedules(nextSchedules);
+      setListTitles(nextTitles);
+      setComments(nextComments);
+      const firstDate = Object.keys(nextSchedules).sort()[0] ?? today;
+      setSelectedDate(firstDate);
+      setSelectedId(nextSchedules[firstDate]?.[0]?.id ?? "");
+      setDataReady(true);
+    };
+    void loadTripData();
+    return () => { cancelled = true; };
+  }, [trip.id, today]);
+
+  useEffect(() => {
+    if (!dataReady) return;
+    const timer = window.setTimeout(async () => {
+      const dates = [...new Set([...Object.keys(schedules), ...Object.keys(listTitles)])];
+      if (!dates.length) return;
+      const { error } = await supabase.from("trip_documents").upsert(dates.map((date) => ({
+        trip_id: trip.id,
+        trip_date: date,
+        list_title: listTitles[date] ?? "새 여행 일정",
+        schedule: schedules[date] ?? [],
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      })), { onConflict: "trip_id,trip_date" });
+      if (error) setDataError("변경사항을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [dataReady, listTitles, schedules, trip.id, user.id]);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {
     if (!resizing) return;
@@ -489,15 +555,16 @@ export default function App() {
   }, []);
 
   const addPlace = (candidate: Candidate, rank: "primary" | "candidate", parentId: string, date: string) => {
+    const authoredCandidate = { ...candidate, createdBy: user.id, createdByName: userName, createdAt: new Date().toISOString() };
     if (rank === "primary") {
-      const place = asPrimary(candidate, candidate.time);
+      const place = asPrimary(authoredCandidate, authoredCandidate.time);
       setSchedules((current) => ({ ...current, [date]: sortPlaces([...(current[date] ?? []), place]) }));
       setSelectedDate(date);
       setSelectedId(place.id);
     } else {
       setSchedules((current) => ({
         ...current,
-        [date]: sortPlaces((current[date] ?? []).map((place) => place.id === parentId ? { ...place, alternatives: sortCandidates([...place.alternatives, candidate]) } : place)),
+        [date]: sortPlaces((current[date] ?? []).map((place) => place.id === parentId ? { ...place, alternatives: sortCandidates([...place.alternatives, authoredCandidate]) } : place)),
       }));
       setExpanded((current) => ({ ...current, [parentId]: true }));
       setSelectedDate(date);
@@ -590,10 +657,14 @@ export default function App() {
     finishDrag();
   };
 
-  const addComment = (placeId: string, name: string, content: string) => {
-    const next = { ...comments, [placeId]: [...(comments[placeId] ?? []), { id: Date.now(), name, content, createdAt: "방금" }] };
-    setComments(next);
-    localStorage.setItem("into-the-blue-comments", JSON.stringify(next));
+  const addComment = async (placeId: string, content: string) => {
+    const { data, error } = await supabase.from("comments").insert({ trip_id: trip.id, place_id: placeId, user_id: user.id, content }).select("id,created_at").single();
+    if (error || !data) {
+      setDataError("댓글을 저장하지 못했습니다.");
+      return;
+    }
+    const item: Comment = { id: data.id, userId: user.id, name: userName, avatarUrl, content, createdAt: "방금" };
+    setComments((current) => ({ ...current, [placeId]: [...(current[placeId] ?? []), item] }));
   };
 
   const removeCandidate = (placeId: string, candidateId: string) => {
@@ -627,7 +698,7 @@ export default function App() {
       const nextComments = { ...comments };
       delete nextComments[placeId];
       setComments(nextComments);
-      localStorage.setItem("into-the-blue-comments", JSON.stringify(nextComments));
+      void supabase.from("comments").delete().eq("trip_id", trip.id).eq("place_id", placeId);
     }
     setDeleteTarget(null);
   };
@@ -659,12 +730,21 @@ export default function App() {
     if (event.key === "End") { event.preventDefault(); setSidebarWidth(680); localStorage.setItem("into-the-blue-sidebar-width", "680"); }
   };
 
-  const copySiteAddress = async () => {
+  const createInviteLink = async () => {
+    if (role !== "owner") return;
+    setDataError("");
+    const { data: token, error } = await supabase.rpc("create_invite", { p_trip_id: trip.id, p_expires_in_hours: 168 });
+    if (error || !token) {
+      setDataError("초대 링크를 만들지 못했습니다. 데이터베이스 마이그레이션을 확인해주세요.");
+      return;
+    }
+    const inviteUrl = new URL(window.location.origin);
+    inviteUrl.searchParams.set("invite", token);
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(inviteUrl.toString());
     } catch {
       const input = document.createElement("textarea");
-      input.value = window.location.href;
+      input.value = inviteUrl.toString();
       input.style.position = "fixed";
       input.style.opacity = "0";
       document.body.appendChild(input);
@@ -685,7 +765,7 @@ export default function App() {
     const daySections = entries.map(([date, items], dayIndex) => `
       <section class="day">
         <header class="day-heading">
-          <div><span>DAY ${dayIndex + 1}</span><h2>${escapeHtml(listTitles[date] ?? "서라벌에서 보내는 하루")}</h2></div>
+          <div><span>DAY ${dayIndex + 1}</span><h2>${escapeHtml(listTitles[date] ?? "새 여행 일정")}</h2></div>
           <time>${escapeHtml(formatTripDate(date))}</time>
         </header>
         <div class="timeline">
@@ -704,7 +784,7 @@ export default function App() {
       </section>`).join("");
 
     printWindow.document.open();
-    printWindow.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>Seorabeol_Tour_Itinerary</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+    printWindow.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(trip.name)} 일정</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>
       @page { size: A4; margin: 13mm; }
       * { box-sizing: border-box; }
       body { margin: 0; background: #f5f1e8; color: #24352f; font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -746,19 +826,23 @@ export default function App() {
       .candidate a { flex: none; color: #987133; font-size: 8px; text-decoration: none; }
       footer { display: flex; justify-content: space-between; margin-top: 34px; padding: 14px 2px 0; border-top: 1px solid #ded7cb; color: #8b938e; font-size: 8px; }
       @media print { body { background: white; } .sheet { max-width: none; padding: 0; } .day { break-inside: auto; } }
-    </style></head><body><main class="sheet"><section class="cover"><span class="eyebrow">TRAVEL ITINERARY</span><h1>SEORABEOL TOUR</h1><p>${escapeHtml(tripDateRange)}</p><div class="stats"><div><strong>${entries.length}</strong><span>여행 일수</span></div><div><strong>${confirmedCount}</strong><span>확정 일정</span></div><div><strong>${candidateCount}</strong><span>후보 장소</span></div></div></section>${daySections}<footer><span>SEORABEOL TOUR</span><span>Into the Blue · ${escapeHtml(new Date().toLocaleDateString("ko-KR"))}</span></footer></main><script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},500)});</script></body></html>`);
+    </style></head><body><main class="sheet"><section class="cover"><span class="eyebrow">TRAVEL ITINERARY</span><h1>${escapeHtml(trip.name)}</h1><p>${escapeHtml(tripDateRange)}</p><div class="stats"><div><strong>${entries.length}</strong><span>여행 일수</span></div><div><strong>${confirmedCount}</strong><span>확정 일정</span></div><div><strong>${candidateCount}</strong><span>후보 장소</span></div></div></section>${daySections}<footer><span>${escapeHtml(trip.name)}</span><span>Into the Blue · ${escapeHtml(new Date().toLocaleDateString("ko-KR"))}</span></footer></main><script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},500)});</script></body></html>`);
     printWindow.document.close();
   };
 
   const appStyle = { "--sidebar-width": `${sidebarWidth}px` } as CSSProperties;
 
+  if (!dataReady) return <main className="data-loading">여행 일정을 불러오는 중...</main>;
+
   return (
     <main className="app-shell" style={appStyle}>
       <header className="topbar">
         <a className="brand" href="#top" aria-label="여정 홈"><span>여</span>정</a>
-        <div className="trip-title"><strong>Seorabeol Tour</strong><span>{tripDateRange}</span></div>
-        <div className="top-actions"><div className="people" aria-label="함께 여행하는 사람 3명"><span>민</span><span>준</span><span>유</span></div><button className="pdf-button" onClick={exportItineraryPdf} disabled={!scheduledDates.length} aria-label="전체 일정 PDF 저장"><span>⇩</span> PDF 저장</button><button className="add-place-button" onClick={() => { setCommentPlace(null); setAddOpen(true); }}><span>＋</span> 장소 추가</button><button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={copySiteAddress}><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "링크 복사"}</button></div>
+        <div className="trip-title"><strong>{trip.name}</strong><span>{tripDateRange}</span></div>
+        <div className="top-actions"><div className="people" aria-label={`함께 여행하는 사람 ${members.length}명`}>{members.slice(0, 4).map((member) => <span key={member.id} title={member.nickname}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : member.nickname.slice(0, 1)}</span>)}</div><button className="pdf-button" onClick={exportItineraryPdf} disabled={!scheduledDates.length} aria-label="전체 일정 PDF 저장"><span>⇩</span> PDF 저장</button><button className="add-place-button" onClick={() => { setCommentPlace(null); setAddOpen(true); }}><span>＋</span> 장소 추가</button>{role === "owner" && <button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={createInviteLink}><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "초대 링크"}</button>}<button className="account-button" onClick={() => signOut()} title="로그아웃">{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</button></div>
       </header>
+
+      {dataError && <div className="data-error" role="alert">{dataError}<button onClick={() => setDataError("")}>×</button></div>}
 
       <section className={`schedule-panel ${mobileSchedule ? "is-open" : ""}`} id="top">
         <div className="schedule-header"><div><p className="date-kicker">{relativeDateLabel(selectedDate, today)} · {formatDate(selectedDate, { month: "long", day: "numeric" })}</p>{editingListTitle ? <form className="list-title-form" onSubmit={saveListTitle}><input value={listTitleDraft} onChange={(event) => setListTitleDraft(event.target.value)} maxLength={40} autoFocus aria-label="일정 목록 제목" /><button type="submit">저장</button><button type="button" onClick={() => setEditingListTitle(false)}>취소</button></form> : <div className="list-title-row"><h1>{currentListTitle}</h1><button onClick={beginListTitleEdit} aria-label="목록 제목 수정" title="제목 수정">✎</button></div>}<p>날짜와 시간을 선택하면 일정이 자동으로 정리돼요.</p></div><button className="mobile-close" onClick={() => setMobileSchedule(false)} aria-label="지도 보기">×</button></div>
@@ -789,17 +873,15 @@ export default function App() {
                   onDragEnter={() => setDropZone(`primary:${place.id}`)}
                   onDrop={(event) => dropOnPrimary(event, place.id)}
                 >
-                  <button className="place-main" onClick={() => selectPlace(place.id)}><span className="drag-handle" aria-hidden="true">⋮⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span><span>{place.category} · {place.duration}</span></span><span className="chevron">›</span></button>
+                  <button className="place-main" onClick={() => selectPlace(place.id)}><span className="drag-handle" aria-hidden="true">⋮⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span><span>{place.category} · {place.duration}</span>{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span><span className="chevron">›</span></button>
                   <p className={`place-note ${place.note ? "" : "is-empty"}`}>{place.note || "메모를 추가해보세요."}</p>
                   <div className="card-actions"><button onClick={() => setExpanded((value) => ({ ...value, [place.id]: !value[place.id] }))} aria-expanded={showCandidates}>후보 {place.alternatives.length} <b className={showCandidates ? "up" : ""}>⌄</b></button><button onClick={() => { setCommentPlace(null); setNoteTarget({ placeId: place.id }); }}>메모</button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
                   {showCandidates && (
                     <div className={`alternatives ${dropZone === `candidate:${place.id}` ? "is-drop-target" : ""}`} onDragOver={(event) => event.preventDefault()} onDragEnter={() => setDropZone(`candidate:${place.id}`)} onDrop={(event) => dropOnCandidates(event, place.id)}>
                       {place.alternatives.map((candidate) => (
                         <div className="alternative-row" draggable key={candidate.id} onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id }); }} onDragEnd={finishDrag}>
-                          <button onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag">⋮⋮</span><span><strong>{candidate.title}</strong><small>{candidate.time} · {candidate.category}</small><span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span><em>후보</em></button>
-                          <button className="candidate-note" onClick={() => { setCommentPlace(null); setNoteTarget({ placeId: place.id, candidateId: candidate.id }); }} aria-label={`${candidate.title} 메모 수정`}>메모</button>
-                          <a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`} title="Google 리뷰 보기">G</a>
-                          <button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>×</button>
+                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag">⋮⋮</span><span><strong>{candidate.title}</strong><small>{candidate.time} · {candidate.category}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
+                          <div className="candidate-actions"><span className="candidate-badge">후보</span><button onClick={() => { setCommentPlace(null); setNoteTarget({ placeId: place.id, candidateId: candidate.id }); }} aria-label={`${candidate.title} 메모 수정`}>메모</button><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
                         </div>
                       ))}
                       <div className="candidate-drop-hint">이곳에 놓으면 후보로 이동</div>
@@ -837,7 +919,7 @@ export default function App() {
 
       {(addOpen || openCommentPlace || deletePlace || editableNote) && <button className="popover-backdrop" onClick={() => { setAddOpen(false); setCommentPlace(null); setDeleteTarget(null); setNoteTarget(null); }} aria-label="팝업 닫기" />}
       {addOpen && <AddPlacePanel schedules={schedules} defaultDate={lastAddDate} onClose={() => setAddOpen(false)} onAdd={addPlace} />}
-      {openCommentPlace && <CommentPopover place={openCommentPlace} comments={comments[openCommentPlace.id] ?? []} onClose={() => setCommentPlace(null)} onAdd={(name, content) => addComment(openCommentPlace.id, name, content)} />}
+      {openCommentPlace && <CommentPopover place={openCommentPlace} comments={comments[openCommentPlace.id] ?? []} userName={userName} avatarUrl={avatarUrl} onClose={() => setCommentPlace(null)} onAdd={(content) => addComment(openCommentPlace.id, content)} />}
       {editableNote && noteTarget && <NoteEditor title={editableNote.title} initialValue={editableNote.note} onClose={() => setNoteTarget(null)} onSave={(value) => saveNote(noteTarget, value)} />}
       {deletePlace && <DeleteDialog place={deletePlace} candidate={deleteCandidate} onCancel={() => setDeleteTarget(null)} onPromote={() => removePrimary(deletePlace.id, false)} onDeleteAll={() => deleteCandidate ? removeCandidate(deletePlace.id, deleteCandidate.id) : removePrimary(deletePlace.id, true)} />}
     </main>
