@@ -10,6 +10,15 @@ type CommentsByPlace = Record<string, Comment[]>;
 type SchedulesByDate = Record<string, Place[]>;
 type NoteTarget = { placeId: string; candidateId?: string };
 type DeleteTarget = { placeId: string; candidateId?: string };
+type EditTarget = { date: string; placeId: string; candidateId?: string };
+type PlaceEditValues = {
+  title: string;
+  date: string;
+  time: string;
+  coords: [number, number];
+  googleMapsUrl?: string;
+  parentId?: string;
+};
 
 function minutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -48,13 +57,33 @@ function formatCommentTime(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(date);
 }
 
+function cleanPlaceLabel(value?: string) {
+  const label = value?.trim() ?? "";
+  return label === "시간 미정" || label === "Google Maps 장소" ? "" : label;
+}
+
+function primaryMeta(place: Pick<Place, "category" | "duration">) {
+  return [cleanPlaceLabel(place.category), cleanPlaceLabel(place.duration)].filter(Boolean).join(" · ");
+}
+
+function candidateMeta(candidate: Pick<Candidate, "time" | "category">) {
+  return [candidate.time, cleanPlaceLabel(candidate.category)].filter(Boolean).join(" · ");
+}
+
 function sortCandidates(items: Candidate[]) {
-  return [...items].sort((a, b) => minutes(a.time) - minutes(b.time));
+  return [...items]
+    .map((candidate) => ({ ...candidate, category: cleanPlaceLabel(candidate.category) }))
+    .sort((a, b) => minutes(a.time) - minutes(b.time));
 }
 
 function sortPlaces(items: Place[]) {
   return [...items]
-    .map((place) => ({ ...place, alternatives: sortCandidates(place.alternatives) }))
+    .map((place) => ({
+      ...place,
+      category: cleanPlaceLabel(place.category),
+      duration: cleanPlaceLabel(place.duration),
+      alternatives: sortCandidates(place.alternatives),
+    }))
     .sort((a, b) => minutes(a.time) - minutes(b.time));
 }
 
@@ -107,7 +136,7 @@ function parseGoogleMapsLink(input: string): ParsedGoogleMapsLink | null {
   if (!coordinates) return null;
 
   const titleMatch = parsedUrl.pathname.match(/\/maps\/place\/([^/]+)/);
-  let title = titleMatch ? decodeURIComponent(titleMatch[1]).replace(/\+/g, " ") : "Google Maps 장소";
+  let title = titleMatch ? decodeURIComponent(titleMatch[1]).replace(/\+/g, " ") : "";
   title = title.replace(/\s+/g, " ").trim();
   return { url: parsedUrl.toString(), title, coords: [Number(coordinates[1]), Number(coordinates[2])] };
 }
@@ -125,7 +154,7 @@ function asCandidate(place: Place): Candidate {
 }
 
 function asPrimary(candidate: Candidate, time: string, alternatives: Candidate[] = []): Place {
-  return { ...candidate, time, duration: "시간 미정", alternatives: sortCandidates(alternatives) };
+  return { ...candidate, time, duration: "", alternatives: sortCandidates(alternatives) };
 }
 
 function getTimeline(now: Date, places: Place[], selectedDate: string) {
@@ -184,7 +213,7 @@ function AddPlacePanel({
     }
     setGoogleUrl(parsed.url);
     setParsedLink(parsed);
-    setQuery(parsed.title);
+    if (parsed.title) setQuery(parsed.title);
     setMemo("");
     setError("");
   };
@@ -204,7 +233,7 @@ function AddPlacePanel({
         id: newId(rank),
         time,
         title: query.trim(),
-        category: "Google Maps 장소",
+        category: "",
         note: memo.trim(),
         coords: parsedLink.coords,
         googleMapsUrl: parsedLink.url,
@@ -240,7 +269,7 @@ function AddPlacePanel({
           />
           <button type="button" onClick={() => analyzeGoogleLink()}>분석</button>
         </div>
-        {parsedLink && <p className="link-status"><span>✓</span> 지도에서 {parsedLink.title} 위치를 찾았어요.</p>}
+        {parsedLink && <p className="link-status"><span>✓</span> 지도 위치를 확인했어요{parsedLink.title ? `: ${parsedLink.title}` : "."}</p>}
         <div className="or-divider"><span>또는</span></div>
         <label className="field-label">장소명 또는 Google 지도 검색어</label>
         <div className="search-box">
@@ -279,6 +308,108 @@ function AddPlacePanel({
   );
 }
 
+function EditPlacePanel({
+  schedules,
+  targetDate,
+  place,
+  candidate,
+  onClose,
+  onSave,
+}: {
+  schedules: SchedulesByDate;
+  targetDate: string;
+  place: Place;
+  candidate?: Candidate;
+  onClose: () => void;
+  onSave: (values: PlaceEditValues) => void;
+}) {
+  const item = candidate ?? place;
+  const [title, setTitle] = useState(item.title);
+  const [date, setDate] = useState(targetDate);
+  const [time, setTime] = useState(item.time);
+  const [parentId, setParentId] = useState(place.id);
+  const [googleUrl, setGoogleUrl] = useState(item.googleMapsUrl ?? "");
+  const [coords, setCoords] = useState<[number, number]>(item.coords);
+  const [parsedLink, setParsedLink] = useState<ParsedGoogleMapsLink | null>(null);
+  const [error, setError] = useState("");
+  const itinerary = useMemo(() => sortPlaces(schedules[date] ?? []), [schedules, date]);
+
+  const analyzeGoogleLink = () => {
+    const parsed = parseGoogleMapsLink(googleUrl);
+    if (!parsed) {
+      setParsedLink(null);
+      setError("전체 Google Maps 링크인지 확인해주세요. 짧은 링크는 전체 URL로 열어서 붙여넣어야 합니다.");
+      return;
+    }
+    setGoogleUrl(parsed.url);
+    setCoords(parsed.coords);
+    setParsedLink(parsed);
+    if (parsed.title) setTitle(parsed.title);
+    setError("");
+  };
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!title.trim() || !date || !time) {
+      setError("장소명, 날짜와 시간을 확인해주세요.");
+      return;
+    }
+    if (candidate && !parentId) {
+      setError("후보를 넣을 확정 일정을 선택해주세요.");
+      return;
+    }
+    if (googleUrl.trim() && googleUrl.trim() !== (item.googleMapsUrl ?? "") && !parsedLink) {
+      setError("새 Google Maps 링크는 분석 버튼을 눌러 위치를 확인해주세요.");
+      return;
+    }
+    onSave({
+      title: title.trim(),
+      date,
+      time,
+      coords,
+      googleMapsUrl: googleUrl.trim() || undefined,
+      parentId: candidate ? parentId : undefined,
+    });
+  };
+
+  return (
+    <div className="add-panel edit-panel" role="dialog" aria-modal="true" aria-label={`${item.title} 수정`}>
+      <div className="popover-heading">
+        <div><span className="eyebrow">EDIT PLACE</span><h3>{candidate ? "후보 수정" : "일정 수정"}</h3></div>
+        <button className="icon-button" onClick={onClose} aria-label="수정 창 닫기">×</button>
+      </div>
+      <form className="place-form" onSubmit={submit}>
+        <label className="field-label" htmlFor="edit-place-title">장소 이름</label>
+        <div className="search-box">
+          <span>⌕</span>
+          <input id="edit-place-title" value={title} onChange={(event) => setTitle(event.target.value)} autoFocus required />
+        </div>
+        <label className="field-label">Google Maps 링크 <small>(선택)</small></label>
+        <div className={`google-link-box ${parsedLink ? "is-valid" : ""}`}>
+          <span>G</span>
+          <input value={googleUrl} onChange={(event) => { setGoogleUrl(event.target.value); setParsedLink(null); }} placeholder="장소를 바꾸려면 새 링크를 붙여넣으세요" aria-label="Google Maps 링크" />
+          <button type="button" onClick={analyzeGoogleLink} disabled={!googleUrl.trim()}>분석</button>
+        </div>
+        {parsedLink && <p className="link-status"><span>✓</span> 지도 위치를 변경했어요{parsedLink.title ? `: ${parsedLink.title}` : "."}</p>}
+        <div className="schedule-date-time">
+          <label><span>방문 날짜</span><input type="date" value={date} onChange={(event) => {
+            const value = event.target.value;
+            setDate(value);
+            if (candidate) setParentId(value === targetDate ? place.id : schedules[value]?.[0]?.id ?? "");
+            setError("");
+          }} required /></label>
+          <label><span>방문 시간</span><input type="time" value={time} onChange={(event) => setTime(event.target.value)} required /></label>
+        </div>
+        {candidate && (
+          <label className="parent-select"><span>어느 일정의 후보인가요?</span><select value={parentId} onChange={(event) => setParentId(event.target.value)}>{itinerary.map((primary) => <option value={primary.id} key={primary.id}>{primary.time} · {primary.title}</option>)}</select>{itinerary.length === 0 && <small>선택한 날짜에 확정 일정이 없습니다.</small>}</label>
+        )}
+        {error && <p className="form-error">{error}</p>}
+        <div className="form-actions"><button type="button" onClick={onClose}>취소</button><button type="submit">변경사항 저장</button></div>
+      </form>
+    </div>
+  );
+}
+
 function CommentPopover({
   place,
   comments,
@@ -306,7 +437,7 @@ function CommentPopover({
   };
 
   return (
-    <div className="comment-popover" role="dialog" aria-label={`${place.title} 댓글`}>
+    <div className="comment-popover" role="dialog" aria-modal="true" aria-label={`${place.title} 댓글`}>
       <div className="popover-heading"><div><span className="eyebrow">함께 정하기</span><h3>{place.title} 댓글</h3></div><button className="icon-button" onClick={onClose} aria-label="댓글 닫기">×</button></div>
       <div className="comment-list">
         {comments.length === 0 && <p className="empty-comment">첫 의견을 남겨보세요.</p>}
@@ -422,6 +553,7 @@ export default function App() {
   const [dropZone, setDropZone] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = Number(localStorage.getItem("into-the-blue-sidebar-width"));
     return Number.isFinite(saved) && saved >= 360 ? Math.min(saved, 680) : 430;
@@ -448,6 +580,11 @@ export default function App() {
   const notePlace = places.find((place) => place.id === noteTarget?.placeId);
   const noteCandidate = notePlace?.alternatives.find((candidate) => candidate.id === noteTarget?.candidateId);
   const editableNote = noteTarget?.candidateId ? noteCandidate : notePlace;
+  const editSourcePlace = editTarget
+    ? schedules[editTarget.date]?.find((place) => place.id === editTarget.placeId)
+    : undefined;
+  const editSourceCandidate = editSourcePlace?.alternatives.find((candidate) => candidate.id === editTarget?.candidateId);
+  const editablePlace = editTarget?.candidateId ? editSourceCandidate : editSourcePlace;
   const totalCandidates = places.reduce((sum, place) => sum + place.alternatives.length, 0);
   const scheduledDates = useMemo(() => Object.entries(schedules).filter(([, items]) => items.length > 0).map(([date]) => date).sort(), [schedules]);
   const previousDate = [...scheduledDates].reverse().find((date) => date < selectedDate);
@@ -532,6 +669,20 @@ export default function App() {
   }, [dataReady, listTitles, schedules, trip.id, user.id]);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {
+    const closePopups = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setAccountOpen(false);
+      setAddOpen(false);
+      setCommentPlace(null);
+      setDeleteTarget(null);
+      setNoteTarget(null);
+      setEditTarget(null);
+      if (!tripDeleteBusy) setTripToDelete(null);
+    };
+    window.addEventListener("keydown", closePopups);
+    return () => window.removeEventListener("keydown", closePopups);
+  }, [tripDeleteBusy]);
+  useEffect(() => {
     if (!resizing) return;
     const resize = (event: PointerEvent) => {
       const width = Math.max(360, Math.min(680, Math.min(event.clientX, window.innerWidth * 0.58)));
@@ -560,7 +711,16 @@ export default function App() {
     setCommentPlace(null);
     setNoteTarget(null);
     setDeleteTarget(null);
+    setEditTarget(null);
     setEditingListTitle(false);
+  };
+
+  const openAddPlace = () => {
+    setCommentPlace(null);
+    setNoteTarget(null);
+    setDeleteTarget(null);
+    setEditTarget(null);
+    setAddOpen(true);
   };
 
   const beginListTitleEdit = () => {
@@ -715,6 +875,55 @@ export default function App() {
     setNoteTarget(null);
   };
 
+  const savePlaceEdit = (target: EditTarget, values: PlaceEditValues) => {
+    setSchedules((current) => {
+      const sourceItems = current[target.date] ?? [];
+      const sourcePlace = sourceItems.find((place) => place.id === target.placeId);
+      if (!sourcePlace) return current;
+
+      const next = { ...current };
+      if (!target.candidateId) {
+        const updated: Place = {
+          ...sourcePlace,
+          title: values.title,
+          time: values.time,
+          coords: values.coords,
+          googleMapsUrl: values.googleMapsUrl,
+          category: cleanPlaceLabel(sourcePlace.category),
+          duration: cleanPlaceLabel(sourcePlace.duration),
+        };
+        next[target.date] = sortPlaces(sourceItems.filter((place) => place.id !== target.placeId));
+        const destination = values.date === target.date ? next[values.date] : current[values.date] ?? [];
+        next[values.date] = sortPlaces([...(destination ?? []), updated]);
+        return next;
+      }
+
+      const sourceCandidate = sourcePlace.alternatives.find((candidate) => candidate.id === target.candidateId);
+      if (!sourceCandidate || !values.parentId) return current;
+      const updatedCandidate: Candidate = {
+        ...sourceCandidate,
+        title: values.title,
+        time: values.time,
+        coords: values.coords,
+        googleMapsUrl: values.googleMapsUrl,
+        category: cleanPlaceLabel(sourceCandidate.category),
+      };
+      next[target.date] = sortPlaces(sourceItems.map((place) => place.id === target.placeId
+        ? { ...place, alternatives: place.alternatives.filter((candidate) => candidate.id !== target.candidateId) }
+        : place));
+      const destination = values.date === target.date ? next[values.date] : current[values.date] ?? [];
+      if (!(destination ?? []).some((place) => place.id === values.parentId)) return current;
+      next[values.date] = sortPlaces((destination ?? []).map((place) => place.id === values.parentId
+        ? { ...place, alternatives: sortCandidates([...place.alternatives, updatedCandidate]) }
+        : place));
+      return next;
+    });
+    setSelectedDate(values.date);
+    setSelectedId(target.candidateId ? values.parentId ?? target.placeId : target.placeId);
+    if (target.candidateId && values.parentId) setExpanded((current) => ({ ...current, [values.parentId!]: true }));
+    setEditTarget(null);
+  };
+
   const removePrimary = (placeId: string, deleteAll: boolean) => {
     const target = places.find((place) => place.id === placeId);
     if (!target) return;
@@ -740,13 +949,31 @@ export default function App() {
   const requestPrimaryDelete = (place: Place) => {
     setCommentPlace(null);
     setNoteTarget(null);
+    setEditTarget(null);
     setDeleteTarget({ placeId: place.id });
   };
 
   const requestCandidateDelete = (placeId: string, candidateId: string) => {
     setCommentPlace(null);
     setNoteTarget(null);
+    setEditTarget(null);
     setDeleteTarget({ placeId, candidateId });
+  };
+
+  const requestPrimaryEdit = (placeId: string) => {
+    setAddOpen(false);
+    setCommentPlace(null);
+    setNoteTarget(null);
+    setDeleteTarget(null);
+    setEditTarget({ date: selectedDate, placeId });
+  };
+
+  const requestCandidateEdit = (placeId: string, candidateId: string) => {
+    setAddOpen(false);
+    setCommentPlace(null);
+    setNoteTarget(null);
+    setDeleteTarget(null);
+    setEditTarget({ date: selectedDate, placeId, candidateId });
   };
 
   const resizeBy = (amount: number) => {
@@ -795,6 +1022,7 @@ export default function App() {
     setCommentPlace(null);
     setNoteTarget(null);
     setDeleteTarget(null);
+    setEditTarget(null);
     setAddOpen(false);
     selectTrip(tripId);
   };
@@ -829,9 +1057,9 @@ export default function App() {
               <div class="time-column"><strong>${escapeHtml(place.time)}</strong><span>${placeIndex + 1}</span></div>
               <div class="place-body">
                 <div class="place-title"><h3>${escapeHtml(place.title)}</h3><b>확정</b></div>
-                <p class="meta">${escapeHtml(place.category)} · ${escapeHtml(place.duration)}</p>
+                ${primaryMeta(place) ? `<p class="meta">${escapeHtml(primaryMeta(place))}</p>` : ""}
                 ${place.note ? `<p class="memo">${noteHtml(place.note)}</p>` : ""}
-                ${place.alternatives.length ? `<div class="candidates"><h4>후보 장소</h4>${sortCandidates(place.alternatives).map((candidate) => `<div class="candidate"><div><strong>${escapeHtml(candidate.title)}</strong><span>${escapeHtml(candidate.time)} · ${escapeHtml(candidate.category)}</span>${candidate.note ? `<p>${noteHtml(candidate.note)}</p>` : ""}</div><a href="${escapeHtml(googleReviewsUrl(candidate))}">Google 리뷰</a></div>`).join("")}</div>` : ""}
+                ${place.alternatives.length ? `<div class="candidates"><h4>후보 장소</h4>${sortCandidates(place.alternatives).map((candidate) => `<div class="candidate"><div><strong>${escapeHtml(candidate.title)}</strong><span>${escapeHtml(candidateMeta(candidate))}</span>${candidate.note ? `<p>${noteHtml(candidate.note)}</p>` : ""}</div><a href="${escapeHtml(googleReviewsUrl(candidate))}">Google 리뷰</a></div>`).join("")}</div>` : ""}
                 <a class="review-link" href="${escapeHtml(googleReviewsUrl(place))}">Google 리뷰 보기</a>
               </div>
             </article>`).join("")}
@@ -897,7 +1125,7 @@ export default function App() {
         <div className="top-actions">
           <div className="people" aria-label={`함께 여행하는 사람 ${members.length}명`}>{members.slice(0, 4).map((member) => <span key={member.id} title={member.nickname}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : member.nickname.slice(0, 1)}</span>)}</div>
           <button className="pdf-button" onClick={exportItineraryPdf} disabled={!scheduledDates.length} aria-label="전체 일정 PDF 저장"><span>⇩</span> PDF 저장</button>
-          <button className="add-place-button" onClick={() => { setCommentPlace(null); setAddOpen(true); }}><span>＋</span> 장소 추가</button>
+          <button className="add-place-button" onClick={openAddPlace}><span>＋</span> 장소 추가</button>
           {role === "owner" && <button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={createInviteLink}><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "초대 링크"}</button>}
           <div className="account-menu-wrap">
             <button className="account-button" onClick={() => setAccountOpen((value) => !value)} title="내 여행 일정" aria-label="내 여행 일정 열기" aria-expanded={accountOpen}>{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</button>
@@ -932,11 +1160,11 @@ export default function App() {
           <button disabled={!nextDate} onClick={() => nextDate && chooseDate(nextDate)} aria-label="일정이 있는 다음 날짜">›</button>
         </div>
         <div className="now-card"><span className="live-dot" /><div><small>{selectedDate === today ? `지금 ${now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}` : formatDate(selectedDate)}</small><strong>{timeline.label}</strong></div><span className="weather">☀︎ 24°</span></div>
-        <div className="drag-guide"><span>⋮⋮</span><p><strong>드래그로 일정 편집</strong>확정 일정과 후보를 서로 옮길 수 있어요.</p><button onClick={() => setAddOpen(true)}>＋ 추가</button></div>
+        <div className="drag-guide"><span>⋮⋮</span><p><strong>드래그로 일정 편집</strong>확정 일정과 후보를 서로 옮길 수 있어요.</p><button onClick={openAddPlace}>＋ 추가</button></div>
 
         <div className="timeline-list">
           <div className="timeline-track"><span style={{ height: `${timeline.progress}%` }} /></div>
-          {places.length === 0 && <div className="empty-schedule"><span>빈 하루</span><h2>아직 등록된 일정이 없어요</h2><p>이 날짜에 가고 싶은 장소를 추가해보세요.</p><button onClick={() => setAddOpen(true)}>＋ 첫 장소 추가</button></div>}
+          {places.length === 0 && <div className="empty-schedule"><span>빈 하루</span><h2>아직 등록된 일정이 없어요</h2><p>이 날짜에 가고 싶은 장소를 추가해보세요.</p><button onClick={openAddPlace}>＋ 첫 장소 추가</button></div>}
           {places.map((place, index) => {
             const commentCount = comments[place.id]?.length ?? 0;
             const showCandidates = !!expanded[place.id] || !!dragged;
@@ -953,15 +1181,15 @@ export default function App() {
                   onDragEnter={() => setDropZone(`primary:${place.id}`)}
                   onDrop={(event) => dropOnPrimary(event, place.id)}
                 >
-                  <button className="place-main" onClick={() => selectPlace(place.id)}><span className="drag-handle" aria-hidden="true">⋮⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span><span>{place.category} · {place.duration}</span>{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span><span className="chevron">›</span></button>
+                  <button className="place-main" onClick={() => selectPlace(place.id)}><span className="drag-handle" aria-hidden="true">⋮⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span>{primaryMeta(place) && <span>{primaryMeta(place)}</span>}{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span><span className="chevron">›</span></button>
                   <p className={`place-note ${place.note ? "" : "is-empty"}`}>{place.note || "메모를 추가해보세요."}</p>
-                  <div className="card-actions"><button onClick={() => setExpanded((value) => ({ ...value, [place.id]: !value[place.id] }))} aria-expanded={showCandidates}>후보 {place.alternatives.length} <b className={showCandidates ? "up" : ""}>⌄</b></button><button onClick={() => { setCommentPlace(null); setNoteTarget({ placeId: place.id }); }}>메모</button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
+                  <div className="card-actions"><button onClick={() => setExpanded((value) => ({ ...value, [place.id]: !value[place.id] }))} aria-expanded={showCandidates}>후보 {place.alternatives.length} <b className={showCandidates ? "up" : ""}>⌄</b></button><button onClick={() => requestPrimaryEdit(place.id)}>수정</button><button onClick={() => { setCommentPlace(null); setNoteTarget({ placeId: place.id }); }}>메모</button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
                   {showCandidates && (
                     <div className={`alternatives ${dropZone === `candidate:${place.id}` ? "is-drop-target" : ""}`} onDragOver={(event) => event.preventDefault()} onDragEnter={() => setDropZone(`candidate:${place.id}`)} onDrop={(event) => dropOnCandidates(event, place.id)}>
                       {place.alternatives.map((candidate) => (
                         <div className="alternative-row" draggable key={candidate.id} onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id }); }} onDragEnd={finishDrag}>
-                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag">⋮⋮</span><span><strong>{candidate.title}</strong><small>{candidate.time} · {candidate.category}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
-                          <div className="candidate-actions"><span className="candidate-badge">후보</span><button onClick={() => { setCommentPlace(null); setNoteTarget({ placeId: place.id, candidateId: candidate.id }); }} aria-label={`${candidate.title} 메모 수정`}>메모</button><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
+                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag">⋮⋮</span><span><strong>{candidate.title}</strong><small>{candidateMeta(candidate)}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
+                          <div className="candidate-actions"><span className="candidate-badge">후보</span><button onClick={() => requestCandidateEdit(place.id, candidate.id)} aria-label={`${candidate.title} 장소 날짜 시간 수정`}>수정</button><button onClick={() => { setCommentPlace(null); setNoteTarget({ placeId: place.id, candidateId: candidate.id }); }} aria-label={`${candidate.title} 메모 수정`}>메모</button><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
                         </div>
                       ))}
                       <div className="candidate-drop-hint">이곳에 놓으면 후보로 이동</div>
@@ -996,8 +1224,9 @@ export default function App() {
 
       <nav className="mobile-view-switcher" aria-label="모바일 화면 전환"><button className={mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(true)}><span>☷</span>일정</button><button className={!mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(false)}><span>⌖</span>지도</button></nav>
 
-      {(addOpen || openCommentPlace || deletePlace || editableNote || tripToDelete) && <button className="popover-backdrop" onClick={() => { if (tripDeleteBusy) return; setAddOpen(false); setCommentPlace(null); setDeleteTarget(null); setNoteTarget(null); setTripToDelete(null); }} aria-label="팝업 닫기" />}
+      {(addOpen || openCommentPlace || deletePlace || editableNote || editablePlace || tripToDelete) && <button className="popover-backdrop" onClick={() => { if (tripDeleteBusy) return; setAddOpen(false); setCommentPlace(null); setDeleteTarget(null); setNoteTarget(null); setEditTarget(null); setTripToDelete(null); }} aria-label="팝업 닫기" />}
       {addOpen && <AddPlacePanel schedules={schedules} defaultDate={lastAddDate} onClose={() => setAddOpen(false)} onAdd={addPlace} />}
+      {editablePlace && editTarget && editSourcePlace && <EditPlacePanel schedules={schedules} targetDate={editTarget.date} place={editSourcePlace} candidate={editSourceCandidate} onClose={() => setEditTarget(null)} onSave={(values) => savePlaceEdit(editTarget, values)} />}
       {openCommentPlace && <CommentPopover place={openCommentPlace} comments={comments[openCommentPlace.id] ?? []} userName={userName} avatarUrl={avatarUrl} onClose={() => setCommentPlace(null)} onAdd={(content) => addComment(openCommentPlace.id, content)} />}
       {editableNote && noteTarget && <NoteEditor title={editableNote.title} initialValue={editableNote.note} onClose={() => setNoteTarget(null)} onSave={(value) => saveNote(noteTarget, value)} />}
       {deletePlace && <DeleteDialog place={deletePlace} candidate={deleteCandidate} onCancel={() => setDeleteTarget(null)} onPromote={() => removePrimary(deletePlace.id, false)} onDeleteAll={() => deleteCandidate ? removeCandidate(deletePlace.id, deleteCandidate.id) : removePrimary(deletePlace.id, true)} />}
