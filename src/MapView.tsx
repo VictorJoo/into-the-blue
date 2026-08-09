@@ -6,6 +6,11 @@ function safe(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!);
 }
 
+function cleanCategory(value?: string) {
+  const category = value?.trim() ?? "";
+  return category === "Google Maps 장소" ? "" : category;
+}
+
 function placePopup(
   place: Place,
   commentCount: number,
@@ -20,7 +25,7 @@ function placePopup(
   const title = document.createElement("strong");
   title.textContent = place.title;
   const meta = document.createElement("small");
-  meta.textContent = `${place.time} · ${place.category}`;
+  meta.textContent = [place.time, cleanCategory(place.category)].filter(Boolean).join(" · ");
   copy.append(title, meta);
 
   const actions = document.createElement("div");
@@ -44,7 +49,8 @@ function placePopup(
 }
 
 function candidatePopup(candidate: Candidate, reviewUrl: string) {
-  return `<div class="map-popup-content"><div class="map-popup-copy"><strong>${safe(candidate.title)}</strong><small>후보 · ${safe(candidate.category)}</small></div><div class="map-popup-actions"><a href="${safe(reviewUrl)}" target="_blank" rel="noreferrer">링크 ↗</a></div></div>`;
+  const meta = ["후보", cleanCategory(candidate.category)].filter(Boolean).join(" · ");
+  return `<div class="map-popup-content"><div class="map-popup-copy"><strong>${safe(candidate.title)}</strong><small>${safe(meta)}</small></div><div class="map-popup-actions"><a href="${safe(reviewUrl)}" target="_blank" rel="noreferrer">링크 ↗</a></div></div>`;
 }
 
 export default function MapView({
@@ -119,8 +125,13 @@ export default function MapView({
 
     if (route.length > 1) map.fitBounds(L.latLngBounds(route), { padding: [60, 60] });
     mapRef.current = map;
+    const closePopupOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") map.closePopup();
+    };
+    window.addEventListener("keydown", closePopupOnEscape);
 
     return () => {
+      window.removeEventListener("keydown", closePopupOnEscape);
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
