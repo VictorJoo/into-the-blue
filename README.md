@@ -1,6 +1,6 @@
 # 여정 — Into the Blue
 
-제주 여행 일정과 이동 경로를 한 화면에서 함께 계획하는 React 앱입니다.
+해외 여행 일정과 이동 경로를 한 화면에서 함께 계획하는 React 앱입니다.
 
 ## 실행
 
@@ -14,21 +14,24 @@ pnpm dev
 ## 주요 기능
 
 - 시간순 일정과 현재 시간 진행 표시
-- OpenStreetMap 기반 1지망 경로 및 장소 이동
-- Google Maps 실제 자동차 경로 지원 및 Google 리뷰 링크
-- 각 일정의 1지망/후보 장소 목록
-- 장소별 댓글 팝오버와 브라우저 로컬 저장
-- 데스크톱/모바일 반응형 UI
+- OpenStreetMap 기반 확정 일정 경로 및 장소 이동
+- Google Maps 전체 링크에서 장소명과 실제 위치 자동 추출
+- 입력한 검색어로 무료 Google Maps 검색 결과 열기
+- 방문 시간 입력과 일정 자동 정렬
+- 오늘을 기본으로 일정이 있는 이전·다음 날짜 탐색
+- 전체 여행 기간 표시와 날짜별 일정 제목 편집
+- 지도 없이 전체 일정을 정리한 A4 PDF 저장 화면
+- 확정 일정/후보 사이 드래그 앤 드롭 이동
+- API 키 없는 Google 리뷰·장소 링크
+- 각 일정의 확정/후보 장소 목록
+- 확정·후보 장소 메모 등록 및 자유로운 수정
+- 모든 장소 삭제 전 확인 및 후보 승격 선택
+- 날짜별 일정·메모·댓글의 브라우저 로컬 저장
+- 모바일 일정/지도 전환 탭을 포함한 반응형 UI
 - GitHub Pages 자동 배포 워크플로
 
 ## GitHub Pages 배포
 
 저장소의 **Settings → Pages → Source**를 **GitHub Actions**로 설정한 뒤 `main` 브랜치에 푸시하면 자동으로 빌드·배포됩니다.
 
-현재 댓글은 브라우저의 `localStorage`에 저장되므로 같은 기기에서만 보입니다. 여러 여행자가 댓글을 공유하려면 Supabase 같은 데이터베이스를 연결하세요.
-
-## Google Maps 연결
-
-Google Cloud Console에서 **Maps JavaScript API**와 **Directions API**를 활성화하고 `.env.example`을 `.env.local`로 복사한 뒤 브라우저 API 키를 입력하세요. 키가 없을 때는 OpenStreetMap 미리보기가 자동으로 표시되며, Google 리뷰 링크는 키 없이도 작동합니다.
-
-GitHub Pages에서는 저장소의 **Settings → Secrets and variables → Actions**에 `GOOGLE_MAPS_API_KEY`라는 이름으로 키를 등록하세요. Google Cloud Console에서 키의 웹사이트 제한을 `https://사용자명.github.io/저장소명/*`으로 설정해야 합니다.
+현재 일정, 메모와 댓글은 브라우저의 `localStorage`에 저장되므로 같은 기기에서만 보입니다. 장소는 Google 지도 검색 화면에서 찾은 전체 링크를 붙여넣어 등록합니다. 여러 여행자가 데이터를 공유하거나 검색 결과를 앱 안에서 바로 불러오려면 데이터베이스와 장소 검색 API를 연결하세요.

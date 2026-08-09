@@ -10,17 +10,18 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "deploy:cloudflare": "pnpm build && wrangler deploy",
     "preview": "vite preview",
     "lint": "eslint ."
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.2",
     "leaflet": "^1.9.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@types/google.maps": "^3.65.5",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22.19.19",
     "@types/react": "^19.2.14",
@@ -32,6 +33,7 @@
     "globals": "^16.4.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.3",
-    "vite": "^8.0.13"
+    "vite": "^8.0.13",
+    "wrangler": "^4.120.0"
   }
 }
