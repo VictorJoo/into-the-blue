@@ -3,7 +3,7 @@ import { signOut } from "./lib/auth";
 import { supabase } from "./lib/supabase";
 import MapView from "./MapView";
 import type { Candidate, DragItem, Place } from "./types";
-import { useWorkspace } from "./workspace";
+import { useWorkspace, type WorkspaceTrip } from "./workspace";
 
 type Comment = { id: string; userId: string; name: string; avatarUrl?: string; content: string; createdAt: string };
 type CommentsByPlace = Record<string, Comment[]>;
@@ -378,8 +378,32 @@ function DeleteDialog({
   );
 }
 
+function TripDeleteDialog({
+  trip,
+  busy,
+  onCancel,
+  onDelete,
+}: {
+  trip: WorkspaceTrip;
+  busy: boolean;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="delete-dialog trip-delete-dialog" role="alertdialog" aria-modal="true" aria-label={`${trip.name} 여행 삭제 확인`}>
+      <span className="delete-kicker">DELETE TRIP</span>
+      <h3>{trip.name}을 삭제할까요?</h3>
+      <p>모든 일정, 후보 장소, 댓글과 초대 링크가 함께 삭제됩니다. <strong>삭제한 여행은 복구할 수 없습니다.</strong></p>
+      <div className="trip-delete-actions">
+        <button onClick={onCancel} disabled={busy}>취소</button>
+        <button className="delete-all" onClick={onDelete} disabled={busy}>{busy ? "삭제하는 중..." : "여행 전체 삭제"}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const { user, userName, avatarUrl, trip, role, members } = useWorkspace();
+  const { user, userName, avatarUrl, trip, trips, role, members, selectTrip, deleteTrip } = useWorkspace();
   const today = dateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [lastAddDate, setLastAddDate] = useState(() => {
@@ -410,8 +434,12 @@ export default function App() {
   const [dataError, setDataError] = useState("");
   const [editingListTitle, setEditingListTitle] = useState(false);
   const [listTitleDraft, setListTitleDraft] = useState("");
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [tripToDelete, setTripToDelete] = useState<WorkspaceTrip | null>(null);
+  const [tripDeleteBusy, setTripDeleteBusy] = useState(false);
 
   const places = useMemo(() => sortPlaces(schedules[selectedDate] ?? []), [schedules, selectedDate]);
+  const commentCounts = useMemo(() => Object.fromEntries(Object.entries(comments).map(([placeId, items]) => [placeId, items.length])), [comments]);
   const timeline = useMemo(() => getTimeline(now, places, selectedDate), [now, places, selectedDate]);
   const selected = places.find((place) => place.id === selectedId) ?? places[0];
   const openCommentPlace = places.find((place) => place.id === commentPlace);
@@ -552,6 +580,12 @@ export default function App() {
     setFocusPoint(null);
     setSelectedId(id);
     if (window.innerWidth < 840) setMobileSchedule(false);
+  }, []);
+
+  const openMapComments = useCallback((id: string) => {
+    setFocusPoint(null);
+    setSelectedId(id);
+    setCommentPlace(id);
   }, []);
 
   const addPlace = (candidate: Candidate, rank: "primary" | "candidate", parentId: string, date: string) => {
@@ -756,6 +790,27 @@ export default function App() {
     window.setTimeout(() => setShareCopied(false), 1800);
   };
 
+  const chooseTrip = (tripId: string) => {
+    setAccountOpen(false);
+    setCommentPlace(null);
+    setNoteTarget(null);
+    setDeleteTarget(null);
+    setAddOpen(false);
+    selectTrip(tripId);
+  };
+
+  const confirmTripDelete = async () => {
+    if (!tripToDelete || tripDeleteBusy) return;
+    setTripDeleteBusy(true);
+    const error = await deleteTrip(tripToDelete.id);
+    setTripDeleteBusy(false);
+    if (error) {
+      setDataError(error);
+      return;
+    }
+    setTripToDelete(null);
+  };
+
   const exportItineraryPdf = () => {
     const printWindow = window.open("", "_blank", "width=980,height=900");
     if (!printWindow) return;
@@ -839,8 +894,33 @@ export default function App() {
       <header className="topbar">
         <a className="brand" href="#top" aria-label="여정 홈"><span>여</span>정</a>
         <div className="trip-title"><strong>{trip.name}</strong><span>{tripDateRange}</span></div>
-        <div className="top-actions"><div className="people" aria-label={`함께 여행하는 사람 ${members.length}명`}>{members.slice(0, 4).map((member) => <span key={member.id} title={member.nickname}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : member.nickname.slice(0, 1)}</span>)}</div><button className="pdf-button" onClick={exportItineraryPdf} disabled={!scheduledDates.length} aria-label="전체 일정 PDF 저장"><span>⇩</span> PDF 저장</button><button className="add-place-button" onClick={() => { setCommentPlace(null); setAddOpen(true); }}><span>＋</span> 장소 추가</button>{role === "owner" && <button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={createInviteLink}><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "초대 링크"}</button>}<button className="account-button" onClick={() => signOut()} title="로그아웃">{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</button></div>
+        <div className="top-actions">
+          <div className="people" aria-label={`함께 여행하는 사람 ${members.length}명`}>{members.slice(0, 4).map((member) => <span key={member.id} title={member.nickname}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : member.nickname.slice(0, 1)}</span>)}</div>
+          <button className="pdf-button" onClick={exportItineraryPdf} disabled={!scheduledDates.length} aria-label="전체 일정 PDF 저장"><span>⇩</span> PDF 저장</button>
+          <button className="add-place-button" onClick={() => { setCommentPlace(null); setAddOpen(true); }}><span>＋</span> 장소 추가</button>
+          {role === "owner" && <button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={createInviteLink}><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "초대 링크"}</button>}
+          <div className="account-menu-wrap">
+            <button className="account-button" onClick={() => setAccountOpen((value) => !value)} title="내 여행 일정" aria-label="내 여행 일정 열기" aria-expanded={accountOpen}>{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</button>
+            {accountOpen && (
+              <section className="account-menu" aria-label="내 여행 일정">
+                <div className="account-menu-profile"><div className="account-menu-avatar">{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</div><div><strong>{userName}</strong><span>접근 가능한 여행 {trips.length}개</span></div></div>
+                <div className="account-menu-heading"><span>내 여행 일정</span><small>선택해서 전환</small></div>
+                <div className="account-trip-list">
+                  {trips.map((item) => (
+                    <div className={`account-trip-row ${item.id === trip.id ? "is-current" : ""}`} key={item.id}>
+                      <button className="account-trip-select" onClick={() => chooseTrip(item.id)}><span className="account-trip-check">{item.id === trip.id ? "✓" : ""}</span><span><strong>{item.name}</strong><small>{item.role === "owner" ? "내가 만든 여행" : "초대받은 여행"}</small></span></button>
+                      {item.role === "owner" && <button className="account-trip-delete" onClick={() => { setAccountOpen(false); setTripToDelete(item); }} aria-label={`${item.name} 삭제`} title="여행 삭제">삭제</button>}
+                    </div>
+                  ))}
+                </div>
+                <button className="account-signout" onClick={() => { setAccountOpen(false); void signOut(); }}>로그아웃</button>
+              </section>
+            )}
+          </div>
+        </div>
       </header>
+
+      {accountOpen && <button className="account-menu-backdrop" onClick={() => setAccountOpen(false)} aria-label="내 여행 일정 닫기" />}
 
       {dataError && <div className="data-error" role="alert">{dataError}<button onClick={() => setDataError("")}>×</button></div>}
 
@@ -908,20 +988,20 @@ export default function App() {
       ><span /></div>
 
       <section className="map-panel">
-        <MapView places={places} selectedId={selected?.id ?? ""} focusPoint={focusPoint} onSelect={selectPlace} />
+        <MapView places={places} selectedId={selected?.id ?? ""} focusPoint={focusPoint} onSelect={selectPlace} onComment={openMapComments} commentCounts={commentCounts} getReviewUrl={googleReviewsUrl} />
         <div className="map-provider-note"><strong>OpenStreetMap</strong><span>위치와 직선 경로는 무료 지도 사용</span></div>
         <div className="map-overlay-top"><button className="mobile-schedule-button" onClick={() => setMobileSchedule(true)}>☰ <span>{relativeDateLabel(selectedDate, today)} 일정</span></button><div className="route-legend"><span className="route-line" /> 확정 일정 경로 <small>{places.length}곳 · 후보 {totalCandidates}곳</small></div></div>
-        {selected && <div className="selected-place-card"><div className="selected-index">{places.findIndex((place) => place.id === selected.id) + 1}</div><div><small>{selected.time} · {selected.category}</small><strong>{selected.title}</strong></div><div className="selected-actions"><a href={googleReviewsUrl(selected)} target="_blank" rel="noreferrer" aria-label={`${selected.title} Google 리뷰 보기`}>★</a><button onClick={() => setCommentPlace(selected.id)} aria-label={`${selected.title} 댓글 열기`}>◌ <span>{comments[selected.id]?.length ?? 0}</span></button></div></div>}
         <div className="map-credit">확정 일정만 직선으로 연결 · 후보는 회색 마커로 표시</div>
       </section>
 
       <nav className="mobile-view-switcher" aria-label="모바일 화면 전환"><button className={mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(true)}><span>☷</span>일정</button><button className={!mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(false)}><span>⌖</span>지도</button></nav>
 
-      {(addOpen || openCommentPlace || deletePlace || editableNote) && <button className="popover-backdrop" onClick={() => { setAddOpen(false); setCommentPlace(null); setDeleteTarget(null); setNoteTarget(null); }} aria-label="팝업 닫기" />}
+      {(addOpen || openCommentPlace || deletePlace || editableNote || tripToDelete) && <button className="popover-backdrop" onClick={() => { if (tripDeleteBusy) return; setAddOpen(false); setCommentPlace(null); setDeleteTarget(null); setNoteTarget(null); setTripToDelete(null); }} aria-label="팝업 닫기" />}
       {addOpen && <AddPlacePanel schedules={schedules} defaultDate={lastAddDate} onClose={() => setAddOpen(false)} onAdd={addPlace} />}
       {openCommentPlace && <CommentPopover place={openCommentPlace} comments={comments[openCommentPlace.id] ?? []} userName={userName} avatarUrl={avatarUrl} onClose={() => setCommentPlace(null)} onAdd={(content) => addComment(openCommentPlace.id, content)} />}
       {editableNote && noteTarget && <NoteEditor title={editableNote.title} initialValue={editableNote.note} onClose={() => setNoteTarget(null)} onSave={(value) => saveNote(noteTarget, value)} />}
       {deletePlace && <DeleteDialog place={deletePlace} candidate={deleteCandidate} onCancel={() => setDeleteTarget(null)} onPromote={() => removePrimary(deletePlace.id, false)} onDeleteAll={() => deleteCandidate ? removeCandidate(deletePlace.id, deleteCandidate.id) : removePrimary(deletePlace.id, true)} />}
+      {tripToDelete && <TripDeleteDialog trip={tripToDelete} busy={tripDeleteBusy} onCancel={() => setTripToDelete(null)} onDelete={confirmTripDelete} />}
     </main>
   );
 }

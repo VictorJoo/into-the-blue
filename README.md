@@ -14,7 +14,10 @@ pnpm dev
 ## Supabase 협업 기능 적용
 
 로그인, 여행 초대, 작성자 표시와 공동 저장을 사용하려면 Supabase Dashboard의 **SQL Editor**에서
-[`supabase/migrations/202608100001_collaboration.sql`](supabase/migrations/202608100001_collaboration.sql)을 실행합니다.
+아래 마이그레이션을 순서대로 실행합니다.
+
+1. [`supabase/migrations/202608100001_collaboration.sql`](supabase/migrations/202608100001_collaboration.sql)
+2. [`supabase/migrations/202608100002_trip_management.sql`](supabase/migrations/202608100002_trip_management.sql)
 
 필수 공개 환경변수는 `.env.example`을 참고해 로컬 `.env.local`과 Cloudflare Workers Builds에 설정합니다.
 
@@ -34,6 +37,7 @@ https://into-the-blue.<account-subdomain>.workers.dev/**
 
 - 시간순 일정과 현재 시간 진행 표시
 - OpenStreetMap 기반 확정 일정 경로 및 장소 이동
+- 지도 장소 팝업의 Google 리뷰 링크와 댓글 바로가기
 - Google Maps 전체 링크에서 장소명과 실제 위치 자동 추출
 - 입력한 검색어로 무료 Google Maps 검색 결과 열기
 - 방문 시간 입력과 일정 자동 정렬
@@ -45,12 +49,11 @@ https://into-the-blue.<account-subdomain>.workers.dev/**
 - 각 일정의 확정/후보 장소 목록
 - 확정·후보 장소 메모 등록 및 자유로운 수정
 - 모든 장소 삭제 전 확인 및 후보 승격 선택
-- 날짜별 일정·메모·댓글의 브라우저 로컬 저장
+- 접근 가능한 여행 목록 전환과 소유자 전용 여행 삭제
+- 날짜별 일정·메모·댓글의 Supabase 공동 저장
 - 모바일 일정/지도 전환 탭을 포함한 반응형 UI
-- GitHub Pages 자동 배포 워크플로
+- Cloudflare Workers Builds 자동 배포
 
-## GitHub Pages 배포
+## Cloudflare 배포
 
-저장소의 **Settings → Pages → Source**를 **GitHub Actions**로 설정한 뒤 `main` 브랜치에 푸시하면 자동으로 빌드·배포됩니다.
-
-현재 일정, 메모와 댓글은 브라우저의 `localStorage`에 저장되므로 같은 기기에서만 보입니다. 장소는 Google 지도 검색 화면에서 찾은 전체 링크를 붙여넣어 등록합니다. 여러 여행자가 데이터를 공유하거나 검색 결과를 앱 안에서 바로 불러오려면 데이터베이스와 장소 검색 API를 연결하세요.
+Cloudflare Workers의 **Settings → Builds**에서 GitHub 저장소와 `main` 브랜치를 연결합니다. Build variables에 Supabase 공개 환경변수를 등록하면 `main` 푸시마다 자동으로 빌드·배포됩니다.
