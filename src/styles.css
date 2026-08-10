@@ -324,6 +324,7 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
 .place-popup .leaflet-popup-content { margin: 9px 10px; color: var(--forest); }
 .map-popup-content { display: flex; min-width: 190px; flex-direction: column; gap: 9px; }
 .map-popup-copy { display: flex; flex-direction: column; }
+.map-popup-note { max-width: 220px; margin: 5px 0 0; color: #5f6d66; font-size: 9px; line-height: 1.45; white-space: normal; }
 .place-popup strong { font-family: "Gowun Batang", serif; font-size: 14px; }
 .place-popup small { margin-top: 2px; color: var(--muted); font-size: 9px; }
 .map-popup-actions { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid #ebe7df; }

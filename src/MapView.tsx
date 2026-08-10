@@ -1,6 +1,19 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import type { Candidate, Place } from "./types";
+import GoogleMapView from "./GoogleMapView";
+
+export type MapFocusPoint = { id: string; coords: [number, number]; name: string; token: number };
+
+export type MapViewProps = {
+  places: Place[];
+  selectedId: string;
+  focusPoint: MapFocusPoint | null;
+  onSelect: (id: string) => void;
+  onComment: (id: string) => void;
+  commentCounts: Record<string, number>;
+  getReviewUrl: (place: Pick<Candidate, "title" | "coords" | "googleMapsUrl">) => string;
+};
 
 function safe(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!);
@@ -22,6 +35,12 @@ function placePopup(
   const meta = document.createElement("small");
   meta.textContent = place.time;
   copy.append(title, meta);
+  if (place.note) {
+    const note = document.createElement("p");
+    note.className = "map-popup-note";
+    note.textContent = place.note;
+    copy.append(note);
+  }
 
   const actions = document.createElement("div");
   actions.className = "map-popup-actions";
@@ -44,10 +63,10 @@ function placePopup(
 }
 
 function candidatePopup(candidate: Candidate, reviewUrl: string) {
-  return `<div class="map-popup-content"><div class="map-popup-copy"><strong>${safe(candidate.title)}</strong><small>후보 · ${safe(candidate.time)}</small></div><div class="map-popup-actions"><a href="${safe(reviewUrl)}" target="_blank" rel="noreferrer">링크 ↗</a></div></div>`;
+  return `<div class="map-popup-content"><div class="map-popup-copy"><strong>${safe(candidate.title)}</strong><small>후보 · ${safe(candidate.time)}</small>${candidate.note ? `<p class="map-popup-note">${safe(candidate.note)}</p>` : ""}</div><div class="map-popup-actions"><a href="${safe(reviewUrl)}" target="_blank" rel="noreferrer">링크 ↗</a></div></div>`;
 }
 
-export default function MapView({
+function OpenStreetMapView({
   places,
   selectedId,
   focusPoint,
@@ -55,15 +74,7 @@ export default function MapView({
   onComment,
   commentCounts,
   getReviewUrl,
-}: {
-  places: Place[];
-  selectedId: string;
-  focusPoint: { coords: [number, number]; name: string; token: number } | null;
-  onSelect: (id: string) => void;
-  onComment: (id: string) => void;
-  commentCounts: Record<string, number>;
-  getReviewUrl: (place: Pick<Candidate, "title" | "coords" | "googleMapsUrl">) => string;
-}) {
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
@@ -108,12 +119,13 @@ export default function MapView({
           iconSize: [16, 16],
           iconAnchor: [8, 8],
         });
-        L.marker(candidate.coords, { icon: candidateIcon })
+        const candidateMarker = L.marker(candidate.coords, { icon: candidateIcon })
           .addTo(map)
           .bindPopup(candidatePopup(candidate, getReviewUrl(candidate)), {
             className: "place-popup candidate-popup",
             closeButton: false,
           });
+        markersRef.current[candidate.id] = candidateMarker;
       });
     });
 
@@ -137,11 +149,17 @@ export default function MapView({
     const map = mapRef.current;
     if (!place || !map) return;
     map.flyTo(focusPoint?.coords ?? place.coords, 14, { duration: 0.8 });
-    if (!focusPoint) markersRef.current[place.id]?.openPopup();
+    markersRef.current[focusPoint?.id ?? place.id]?.openPopup();
     Object.entries(markersRef.current).forEach(([id, marker]) => {
       marker.getElement()?.querySelector(".trip-marker")?.classList.toggle("is-selected", id === selectedId);
     });
   }, [selectedId, focusPoint, places]);
 
   return <div ref={containerRef} className="map-canvas" aria-label="여행 일정 경로 지도" />;
+}
+
+export default function MapView(props: MapViewProps) {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim();
+  if (apiKey) return <GoogleMapView {...props} apiKey={apiKey} />;
+  return <OpenStreetMapView {...props} />;
 }

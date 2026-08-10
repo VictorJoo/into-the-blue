@@ -537,7 +537,7 @@ export default function App() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [commentPlace, setCommentPlace] = useState<string | null>(null);
   const [mobileSchedule, setMobileSchedule] = useState(false);
-  const [focusPoint, setFocusPoint] = useState<{ coords: [number, number]; name: string; token: number } | null>(null);
+  const [focusPoint, setFocusPoint] = useState<{ id: string; coords: [number, number]; name: string; token: number } | null>(null);
   const [now, setNow] = useState(new Date());
   const [addOpen, setAddOpen] = useState(false);
   const [dragged, setDragged] = useState<DragItem | null>(null);
@@ -1185,6 +1185,7 @@ export default function App() {
   };
 
   const appStyle = { "--sidebar-width": `${sidebarWidth}px` } as CSSProperties;
+  const googleMapsEnabled = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim());
 
   if (!dataReady) return <main className="data-loading">여행 일정을 불러오는 중...</main>;
 
@@ -1268,7 +1269,7 @@ export default function App() {
                       {place.alternatives.map((candidate) => (
                         <div className="alternative-row" key={candidate.id}>
                           <button className="corner-edit-button candidate-corner-edit" onClick={() => requestCandidateEdit(place.id, candidate.id)} aria-label={`${candidate.title} 수정`} title="수정">✎</button>
-                          <div className="candidate-main"><button className="candidate-drag" onPointerDown={(event) => startPointerDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id })} onPointerMove={movePointerDrag} onPointerUp={finishPointerDrag} onPointerCancel={finishDrag} aria-label={`${candidate.title} 드래그하여 이동`} title="잡아서 후보 이동">⋮</button><button className="candidate-copy" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><strong>{candidate.title}</strong><small>{candidate.time}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></button></div>
+                          <div className="candidate-main"><button className="candidate-drag" onPointerDown={(event) => startPointerDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id })} onPointerMove={movePointerDrag} onPointerUp={finishPointerDrag} onPointerCancel={finishDrag} aria-label={`${candidate.title} 드래그하여 이동`} title="잡아서 후보 이동">⋮</button><button className="candidate-copy" onClick={() => { setSelectedId(place.id); setFocusPoint({ id: candidate.id, coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><strong>{candidate.title}</strong><small>{candidate.time}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></button></div>
                           <div className="candidate-actions"><span className="candidate-badge">후보</span><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
                         </div>
                       ))}
@@ -1297,9 +1298,9 @@ export default function App() {
 
       <section className="map-panel">
         <MapView places={places} selectedId={selected?.id ?? ""} focusPoint={focusPoint} onSelect={selectPlace} onComment={openMapComments} commentCounts={commentCounts} getReviewUrl={googleReviewsUrl} />
-        <div className="map-provider-note"><strong>OpenStreetMap</strong><span>위치와 직선 경로는 무료 지도 사용</span></div>
+        <div className="map-provider-note"><strong>{googleMapsEnabled ? "Google Maps" : "OpenStreetMap"}</strong><span>{googleMapsEnabled ? "실제 도로를 따라 일정 경로 계산" : "Google API 키 연결 전 무료 지도 모드"}</span></div>
         <div className="map-overlay-top"><button className="mobile-schedule-button" onClick={() => setMobileSchedule(true)}>☰ <span>{relativeDateLabel(selectedDate, today)} 일정</span></button><div className="route-legend"><span className="route-line" /> 확정 일정 경로 <small>{places.length}곳 · 후보 {totalCandidates}곳</small></div></div>
-        <div className="map-credit">확정 일정만 직선으로 연결 · 후보는 회색 마커로 표시</div>
+        <div className="map-credit">{googleMapsEnabled ? "확정 일정은 실제 도로 경로 · 후보도 클릭해 상세 보기" : "확정 일정만 직선으로 연결 · 후보는 회색 마커로 표시"}</div>
       </section>
 
       <nav className="mobile-view-switcher" aria-label="모바일 화면 전환"><button className={mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(true)}><span>☷</span>일정</button><button className={!mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(false)}><span>⌖</span>지도</button></nav>

@@ -29,6 +29,30 @@ VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_ME
 ```
 
+## Google Maps 연동
+
+Google Maps를 사용하면 확정 일정 순서대로 실제 도로 경로를 계산하고, 확정·후보 장소를 클릭해 지도 이동과 상세 정보창을 열 수 있습니다. API 키가 없으면 기존 OpenStreetMap 방식으로 자동 전환됩니다.
+
+1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트를 만들고 결제 계정을 연결합니다.
+2. **Maps JavaScript API**와 **Routes API**를 사용 설정합니다.
+3. **API 및 서비스 → 사용자 인증 정보**에서 API 키를 만듭니다.
+4. 애플리케이션 제한을 **웹사이트(HTTP 리퍼러)**로 설정하고 아래 주소를 허용합니다.
+
+```text
+http://localhost:5173/*
+http://127.0.0.1:5173/*
+https://into-the-blue.proudvictor89.workers.dev/*
+```
+
+5. API 제한은 **Maps JavaScript API**, **Routes API**만 선택합니다.
+6. 로컬 `.env.local`과 Cloudflare 빌드 환경변수에 키를 추가합니다.
+
+```env
+VITE_GOOGLE_MAPS_API_KEY=AIza_REPLACE_ME
+```
+
+Google Maps Essentials SKU는 서비스별 월 10,000건까지 무료 사용량이 제공됩니다. 예기치 않은 과금을 막으려면 각 API의 일일 할당량을 약 300건 이하로 제한하고 결제 예산 알림도 설정하세요. 예산 알림은 결제를 자동 차단하지 않으므로 할당량 제한을 함께 사용해야 합니다.
+
 카카오 OAuth 복귀를 위해 Supabase **Authentication → URL Configuration**에 로컬 주소와 운영 주소를 허용합니다.
 
 ```text
