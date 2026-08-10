@@ -241,24 +241,22 @@ button { color: inherit; }
 .time-pin.is-active { border-color: var(--coral); box-shadow: 0 0 0 6px rgba(239,118,95,.13); color: var(--coral); }
 .schedule-item time { padding: 8px 0 0 9px; color: #737e78; font-size: 11px; font-weight: 600; }
 .place-card { position: relative; min-width: 0; margin-bottom: 15px; border: 1px solid transparent; border-radius: 14px; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.drag-handle[draggable="true"], .candidate-drag[draggable="true"] { cursor: grab; }
-.drag-handle[draggable="true"]:active, .candidate-drag[draggable="true"]:active { cursor: grabbing; }
 .place-card.is-drop-target { border-color: var(--coral); box-shadow: 0 0 0 4px rgba(239,118,95,.12), 0 12px 28px rgba(35,61,51,.09); transform: translateY(-2px); }
 .schedule-item.is-selected .place-card { border-color: #d7ded7; background: white; box-shadow: 0 11px 28px rgba(35, 61, 51, .08); }
 .place-main {
   width: 100%;
   display: grid;
-  grid-template-columns: 14px 1fr;
+  grid-template-columns: 24px 1fr;
   align-items: center;
   gap: 10px;
   padding: 8px 44px 5px 10px;
   border: 0;
   background: transparent;
   text-align: left;
-  cursor: pointer;
 }
-.drag-handle { color: #a6ada9; font-size: 17px; cursor: grab; }
-.place-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.drag-handle, .candidate-drag { display: grid; place-items: center; width: 24px; height: 34px; margin-left: -5px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #a6ada9; font-size: 17px; cursor: grab; touch-action: none; user-select: none; }
+.drag-handle:active, .candidate-drag:active { background: #f5eee7; color: var(--coral); cursor: grabbing; }
+.place-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .place-copy > span:last-child { overflow: hidden; color: #7c8580; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .created-by { color: #8c9791 !important; font-size: 8px !important; font-weight: 500; }
 .place-topline { display: flex; align-items: center; gap: 8px; }
@@ -269,16 +267,18 @@ button { color: inherit; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 10px 10px 33px; }
 .card-actions button, .card-actions a { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border: 1px solid #e6e1d8; border-radius: 6px; background: #faf8f3; color: #7c8681; font-size: 9px; line-height: 1; text-decoration: none; cursor: pointer; }
 .card-actions button.active { color: var(--coral); }
+.card-actions button.is-drop-target { border-color: var(--coral); background: #fff0e9; color: var(--coral); box-shadow: 0 0 0 3px rgba(239,118,95,.12); }
 .card-actions a { border-color: #eadfca; background: #fbf6ea; color: #9b7431; }
 .card-actions .delete-item-button { margin-left: auto; border-color: transparent; background: transparent; color: #b06b60; }
 .card-actions b { display: inline-block; transition: transform .2s; }
 .card-actions b.up { transform: rotate(180deg); }
 .alternatives { margin: 4px 10px 11px 33px; overflow: hidden; border-top: 1px dashed #e4ded3; }
 .alternative-row { position: relative; padding: 7px 0 9px; border-bottom: 1px solid #f0ece5; }
-.candidate-main { display: grid; grid-template-columns: 12px 1fr; align-items: center; gap: 8px; width: 100%; padding: 8px 38px 8px 2px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
+.candidate-main { display: grid; grid-template-columns: 20px 1fr; align-items: center; gap: 8px; width: 100%; padding: 8px 38px 8px 2px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
 .candidate-main:hover { background: #faf8f3; }
-.candidate-main > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; }
-.candidate-drag { color: #a4aaa5; font-size: 15px; cursor: grab; }
+.candidate-drag { width: 20px; height: 40px; margin-left: -4px; color: #a4aaa5; font-size: 15px; }
+.candidate-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.app-shell.is-dragging .place-card { border-style: dashed; }
 .candidate-actions { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 0 20px; }
 .candidate-actions > button, .candidate-actions > a, .candidate-actions > span { display: flex; align-items: center; padding: 6px 8px; border: 1px solid #d8e1e8; border-radius: 6px; background: #f1f6f9; color: #53758a; font-size: 9px; font-weight: 600; line-height: 1; text-decoration: none; cursor: pointer; }
 .candidate-actions .candidate-badge { border-color: #cad9e3; background: #e5eff5; color: #356b88; cursor: default; }

@@ -1,4 +1,4 @@
-import { CSSProperties, DragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "./lib/auth";
 import { supabase } from "./lib/supabase";
 import MapView from "./MapView";
@@ -542,6 +542,8 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [dragged, setDragged] = useState<DragItem | null>(null);
   const [dropZone, setDropZone] = useState("");
+  const activeDragRef = useRef<DragItem | null>(null);
+  const pointerDropZoneRef = useRef("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -764,29 +766,33 @@ export default function App() {
     localStorage.setItem("into-the-blue-last-add-date", date);
   };
 
-  const startDrag = (event: DragEvent, item: DragItem) => {
+  const startPointerDrag = (event: ReactPointerEvent<HTMLElement>, item: DragItem) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    activeDragRef.current = item;
     setDragged(item);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", JSON.stringify(item));
   };
 
-  const finishDrag = () => { setDragged(null); setDropZone(""); };
+  const finishDrag = () => {
+    activeDragRef.current = null;
+    pointerDropZoneRef.current = "";
+    setDragged(null);
+    setDropZone("");
+  };
 
-  const dropOnPrimary = (event: DragEvent, targetId: string) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!dragged) return;
-    if (dragged.kind === "primary") {
-      if (dragged.placeId !== targetId) {
+  const moveToPrimary = (item: DragItem, targetId: string) => {
+    if (item.kind === "primary") {
+      if (item.placeId !== targetId) {
         setItinerary((current) => {
-          const source = current.find((place) => place.id === dragged.placeId);
+          const source = current.find((place) => place.id === item.placeId);
           const target = current.find((place) => place.id === targetId);
           if (!source || !target) return current;
           return sortPlaces(current.map((place) => place.id === source.id ? { ...place, time: target.time } : place.id === target.id ? { ...place, time: source.time } : place));
         });
       }
     } else {
-      const { placeId, candidateId } = dragged;
+      const { placeId, candidateId } = item;
       setItinerary((current) => {
         const next = current.map((place) => ({ ...place, alternatives: [...place.alternatives] }));
         const source = next.find((place) => place.id === placeId);
@@ -803,15 +809,11 @@ export default function App() {
       setSelectedId(candidateId);
       setExpanded((current) => ({ ...current, [candidateId]: true }));
     }
-    finishDrag();
   };
 
-  const dropOnCandidates = (event: DragEvent, targetId: string) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!dragged) return;
-    if (dragged.kind === "candidate") {
-      const { placeId, candidateId } = dragged;
+  const moveToCandidates = (item: DragItem, targetId: string) => {
+    if (item.kind === "candidate") {
+      const { placeId, candidateId } = item;
       setItinerary((current) => {
         const next = current.map((place) => ({ ...place, alternatives: [...place.alternatives] }));
         const source = next.find((place) => place.id === placeId);
@@ -822,8 +824,8 @@ export default function App() {
         target.alternatives = sortCandidates([...target.alternatives.filter((item) => item.id !== candidateId), candidate]);
         return sortPlaces(next);
       });
-    } else if (dragged.placeId !== targetId) {
-      const sourceId = dragged.placeId;
+    } else if (item.placeId !== targetId) {
+      const sourceId = item.placeId;
       setItinerary((current) => {
         const next = current.map((place) => ({ ...place, alternatives: [...place.alternatives] }));
         const sourceIndex = next.findIndex((place) => place.id === sourceId);
@@ -844,6 +846,32 @@ export default function App() {
       setSelectedId(targetId);
     }
     setExpanded((current) => ({ ...current, [targetId]: true }));
+  };
+
+  const findPointerDropZone = (clientX: number, clientY: number) => {
+    const element = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-drop-kind][data-place-id]");
+    if (!element) return "";
+    return `${element.dataset.dropKind}:${element.dataset.placeId}`;
+  };
+
+  const movePointerDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!activeDragRef.current) return;
+    event.preventDefault();
+    const zone = findPointerDropZone(event.clientX, event.clientY);
+    pointerDropZoneRef.current = zone;
+    setDropZone(zone);
+  };
+
+  const finishPointerDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const item = activeDragRef.current;
+    if (!item) return;
+    const zone = findPointerDropZone(event.clientX, event.clientY) || pointerDropZoneRef.current;
+    const separator = zone.indexOf(":");
+    const kind = separator > 0 ? zone.slice(0, separator) : "";
+    const targetId = separator > 0 ? zone.slice(separator + 1) : "";
+    if (kind === "primary" && targetId) moveToPrimary(item, targetId);
+    if (kind === "candidate" && targetId) moveToCandidates(item, targetId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     finishDrag();
   };
 
@@ -1161,7 +1189,7 @@ export default function App() {
   if (!dataReady) return <main className="data-loading">여행 일정을 불러오는 중...</main>;
 
   return (
-    <main className="app-shell" style={appStyle}>
+    <main className={`app-shell ${dragged ? "is-dragging" : ""}`} style={appStyle}>
       <header className="topbar">
         <a className="brand" href="#top" aria-label="SURABUL TOUR 홈">
           <strong>SURABUL TOUR</strong>
@@ -1213,7 +1241,7 @@ export default function App() {
           <label><span>{relativeDateLabel(selectedDate, today)}</span><input type="date" value={selectedDate} onChange={(event) => chooseDate(event.target.value)} aria-label="날짜 직접 선택" /></label>
           <button disabled={!nextDate} onClick={() => nextDate && chooseDate(nextDate)} aria-label="일정이 있는 다음 날짜">›</button>
         </div>
-        <div className="drag-guide"><span>⋮</span><p><strong>드래그로 일정 편집</strong>확정 일정과 후보를 서로 옮길 수 있어요.</p><button onClick={openAddPlace}>＋ 추가</button></div>
+        <div className="drag-guide"><span>⋮</span><p><strong>아이콘을 잡아 일정 편집</strong>카드에 놓으면 확정, 후보 버튼에 놓으면 후보가 돼요.</p><button onClick={openAddPlace}>＋ 추가</button></div>
 
         <div className="timeline-list">
           <div className="timeline-track"><span style={{ height: `${timeline.progress}%` }} /></div>
@@ -1221,7 +1249,6 @@ export default function App() {
           {places.map((place, index) => {
             const commentCount = comments[place.id]?.length ?? 0;
             const isCandidateListOpen = expanded[place.id] ?? false;
-            const showCandidates = isCandidateListOpen || Boolean(dragged);
             const candidateListId = `candidate-list-${place.id}`;
             return (
               <article className={`schedule-item ${selectedId === place.id ? "is-selected" : ""} ${index === timeline.active ? "is-current" : ""}`} key={place.id}>
@@ -1229,20 +1256,19 @@ export default function App() {
                 <time>{place.time}</time>
                 <div
                   className={`place-card ${dropZone === `primary:${place.id}` ? "is-drop-target" : ""}`}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDragEnter={() => setDropZone(`primary:${place.id}`)}
-                  onDrop={(event) => dropOnPrimary(event, place.id)}
+                  data-drop-kind="primary"
+                  data-place-id={place.id}
                 >
                   <button className="corner-edit-button" onClick={() => requestPrimaryEdit(place.id)} aria-label={`${place.title} 수정`} title="수정">✎</button>
-                  <button className="place-main" onClick={() => { selectPlace(place.id); if (place.alternatives.length) openCandidateList(place.id); }}><span className="drag-handle" draggable onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "primary", placeId: place.id }); }} onDragEnd={finishDrag} title="드래그하여 일정 이동">⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span>{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span></button>
+                  <div className="place-main"><button className="drag-handle" onPointerDown={(event) => startPointerDrag(event, { kind: "primary", placeId: place.id })} onPointerMove={movePointerDrag} onPointerUp={finishPointerDrag} onPointerCancel={finishDrag} aria-label={`${place.title} 드래그하여 이동`} title="잡아서 일정 이동">⋮</button><button className="place-copy" onClick={() => { selectPlace(place.id); if (place.alternatives.length) openCandidateList(place.id); }}><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span>{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</button></div>
                   <p className={`place-note ${place.note ? "" : "is-empty"}`}>{place.note || "메모를 추가해보세요."}</p>
-                  <div className="card-actions"><button onClick={() => toggleCandidateList(place.id)} aria-expanded={isCandidateListOpen} aria-controls={candidateListId}>후보 {place.alternatives.length} <b className={isCandidateListOpen ? "up" : ""}>⌄</b></button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
-                  {showCandidates && (
-                    <div id={candidateListId} className={`alternatives ${dropZone === `candidate:${place.id}` ? "is-drop-target" : ""}`} onDragOver={(event) => event.preventDefault()} onDragEnter={() => setDropZone(`candidate:${place.id}`)} onDrop={(event) => dropOnCandidates(event, place.id)}>
+                  <div className="card-actions"><button className={dropZone === `candidate:${place.id}` ? "is-drop-target" : ""} data-drop-kind="candidate" data-place-id={place.id} onClick={() => toggleCandidateList(place.id)} aria-expanded={isCandidateListOpen} aria-controls={candidateListId}>후보 {place.alternatives.length} <b className={isCandidateListOpen ? "up" : ""}>⌄</b></button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
+                  {isCandidateListOpen && (
+                    <div id={candidateListId} data-drop-kind="candidate" data-place-id={place.id} className={`alternatives ${dropZone === `candidate:${place.id}` ? "is-drop-target" : ""}`}>
                       {place.alternatives.map((candidate) => (
                         <div className="alternative-row" key={candidate.id}>
                           <button className="corner-edit-button candidate-corner-edit" onClick={() => requestCandidateEdit(place.id, candidate.id)} aria-label={`${candidate.title} 수정`} title="수정">✎</button>
-                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag" draggable onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id }); }} onDragEnd={finishDrag} title="드래그하여 후보 이동">⋮</span><span><strong>{candidate.title}</strong><small>{candidate.time}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
+                          <div className="candidate-main"><button className="candidate-drag" onPointerDown={(event) => startPointerDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id })} onPointerMove={movePointerDrag} onPointerUp={finishPointerDrag} onPointerCancel={finishDrag} aria-label={`${candidate.title} 드래그하여 이동`} title="잡아서 후보 이동">⋮</button><button className="candidate-copy" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><strong>{candidate.title}</strong><small>{candidate.time}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></button></div>
                           <div className="candidate-actions"><span className="candidate-badge">후보</span><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
                         </div>
                       ))}
