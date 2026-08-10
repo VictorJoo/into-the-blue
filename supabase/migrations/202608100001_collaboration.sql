@@ -212,11 +212,11 @@ begin
     select 1 from public.trip_members
     where trip_id = p_trip_id and user_id = auth.uid() and role = 'owner'
   ) then raise exception 'Only the trip owner can create invites'; end if;
-  invite_token := encode(gen_random_bytes(32), 'hex');
+  invite_token := encode(extensions.gen_random_bytes(32), 'hex');
   insert into public.invites (trip_id, token_hash, created_by, expires_at)
   values (
     p_trip_id,
-    encode(digest(invite_token, 'sha256'), 'hex'),
+    encode(extensions.digest(invite_token, 'sha256'), 'hex'),
     auth.uid(),
     now() + make_interval(hours => greatest(1, least(p_expires_in_hours, 720)))
   );
@@ -236,7 +236,7 @@ begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
   select * into matched
   from public.invites
-  where token_hash = encode(digest(p_token, 'sha256'), 'hex')
+  where token_hash = encode(extensions.digest(p_token, 'sha256'), 'hex')
   for update;
   if matched.id is null or matched.revoked_at is not null or matched.expires_at <= now()
     then raise exception 'Invite is invalid or expired';
