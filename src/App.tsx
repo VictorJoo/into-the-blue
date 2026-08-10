@@ -2,6 +2,7 @@ import { CSSProperties, DragEvent, FormEvent, KeyboardEvent as ReactKeyboardEven
 import { signOut } from "./lib/auth";
 import { supabase } from "./lib/supabase";
 import MapView from "./MapView";
+import { createPhuQuocItinerary, PHU_QUOC_DATES, PHU_QUOC_LIST_TITLES } from "./data/phuQuocItinerary";
 import type { Candidate, DragItem, Place } from "./types";
 import { useWorkspace, type WorkspaceTrip } from "./workspace";
 
@@ -1017,6 +1018,21 @@ export default function App() {
     window.setTimeout(() => setShareCopied(false), 1800);
   };
 
+  const importPhuQuocItinerary = () => {
+    const hasExistingItems = PHU_QUOC_DATES.some((date) => (schedules[date]?.length ?? 0) > 0);
+    if (hasExistingItems && !window.confirm("2026년 10월 29일~11월 1일의 기존 일정을 PDF 내용으로 덮어쓸까요?")) return;
+    const imported = createPhuQuocItinerary(user.id, userName);
+    setSchedules((current) => ({ ...current, ...imported }));
+    setListTitles((current) => ({ ...current, ...PHU_QUOC_LIST_TITLES }));
+    const firstDate = PHU_QUOC_DATES[0];
+    setSelectedDate(firstDate);
+    setSelectedId(imported[firstDate]?.[0]?.id ?? "");
+    setLastAddDate(firstDate);
+    localStorage.setItem("into-the-blue-last-add-date", firstDate);
+    setAccountOpen(false);
+    if (window.innerWidth < 840) setMobileSchedule(true);
+  };
+
   const chooseTrip = (tripId: string) => {
     setAccountOpen(false);
     setCommentPlace(null);
@@ -1144,6 +1160,7 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                <button className="account-import-itinerary" onClick={importPhuQuocItinerary}><span>＋</span><span><strong>PDF 일정 불러오기</strong><small>푸꾸옥 · 2026.10.29~11.01 · 위치는 임시값</small></span></button>
                 <button className="account-signout" onClick={() => { setAccountOpen(false); void signOut(); }}>로그아웃</button>
               </section>
             )}

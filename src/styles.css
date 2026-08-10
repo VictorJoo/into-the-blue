@@ -125,6 +125,12 @@ button { color: inherit; }
 .account-trip-select small { color: #8c9590; font-size: 8px; }
 .account-trip-delete { margin-right: 7px; padding: 6px 7px; border: 0; border-radius: 7px; background: transparent; color: #b56b5e; font-size: 8px; cursor: pointer; }
 .account-trip-delete:hover { background: #fbe9e5; }
+.account-import-itinerary { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 8px; width: calc(100% - 14px); margin: 4px 7px 8px; padding: 10px; border: 1px solid #d7e2d8; border-radius: 10px; background: #f1f6ef; color: var(--forest); text-align: left; cursor: pointer; }
+.account-import-itinerary > span:first-child { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--forest); color: white; font-size: 14px; }
+.account-import-itinerary > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.account-import-itinerary strong { font-size: 9px; }
+.account-import-itinerary small { color: #7f8b84; font-size: 7px; }
+.account-import-itinerary:hover { border-color: #b9cdbd; background: #e8f1e8; }
 .account-signout { width: 100%; padding: 12px 15px; border: 0; border-top: 1px solid #ebe6dd; background: white; color: #69746e; font-size: 9px; font-weight: 700; text-align: left; cursor: pointer; }
 .account-signout:hover { background: #f7f5ef; }
 .share-button {
