@@ -2,7 +2,6 @@ import { CSSProperties, DragEvent, FormEvent, KeyboardEvent as ReactKeyboardEven
 import { signOut } from "./lib/auth";
 import { supabase } from "./lib/supabase";
 import MapView from "./MapView";
-import { createPhuQuocItinerary, PHU_QUOC_DATES, PHU_QUOC_LIST_TITLES } from "./data/phuQuocItinerary";
 import type { Candidate, DragItem, Place } from "./types";
 import { useWorkspace, type WorkspaceTrip } from "./workspace";
 
@@ -1018,21 +1017,6 @@ export default function App() {
     window.setTimeout(() => setShareCopied(false), 1800);
   };
 
-  const importPhuQuocItinerary = () => {
-    const hasExistingItems = PHU_QUOC_DATES.some((date) => (schedules[date]?.length ?? 0) > 0);
-    if (hasExistingItems && !window.confirm("2026년 10월 29일~11월 1일의 기존 일정을 PDF 내용으로 덮어쓸까요?")) return;
-    const imported = createPhuQuocItinerary(user.id, userName);
-    setSchedules((current) => ({ ...current, ...imported }));
-    setListTitles((current) => ({ ...current, ...PHU_QUOC_LIST_TITLES }));
-    const firstDate = PHU_QUOC_DATES[0];
-    setSelectedDate(firstDate);
-    setSelectedId(imported[firstDate]?.[0]?.id ?? "");
-    setLastAddDate(firstDate);
-    localStorage.setItem("into-the-blue-last-add-date", firstDate);
-    setAccountOpen(false);
-    if (window.innerWidth < 840) setMobileSchedule(true);
-  };
-
   const chooseTrip = (tripId: string) => {
     setAccountOpen(false);
     setCommentPlace(null);
@@ -1160,7 +1144,6 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-                <button className="account-import-itinerary" onClick={importPhuQuocItinerary}><span>＋</span><span><strong>PDF 일정 불러오기</strong><small>푸꾸옥 · 2026.10.29~11.01 · 위치는 임시값</small></span></button>
                 <button className="account-signout" onClick={() => { setAccountOpen(false); void signOut(); }}>로그아웃</button>
               </section>
             )}
@@ -1173,13 +1156,12 @@ export default function App() {
       {dataError && <div className="data-error" role="alert">{dataError}<button onClick={() => setDataError("")}>×</button></div>}
 
       <section className={`schedule-panel ${mobileSchedule ? "is-open" : ""}`} id="top">
-        <div className="schedule-header"><div><p className="date-kicker">{relativeDateLabel(selectedDate, today)} · {formatDate(selectedDate, { month: "long", day: "numeric" })}</p>{editingListTitle ? <form className="list-title-form" onSubmit={saveListTitle}><input value={listTitleDraft} onChange={(event) => setListTitleDraft(event.target.value)} maxLength={40} autoFocus aria-label="일정 목록 제목" /><button type="submit">저장</button><button type="button" onClick={() => setEditingListTitle(false)}>취소</button></form> : <div className="list-title-row"><h1>{currentListTitle}</h1><button onClick={beginListTitleEdit} aria-label="목록 제목 수정" title="제목 수정">✎</button></div>}<p>날짜와 시간을 선택하면 일정이 자동으로 정리돼요.</p></div><button className="mobile-close" onClick={() => setMobileSchedule(false)} aria-label="지도 보기">×</button></div>
+        <div className="schedule-header"><div><p className="date-kicker">{formatDate(selectedDate)}</p>{editingListTitle ? <form className="list-title-form" onSubmit={saveListTitle}><input value={listTitleDraft} onChange={(event) => setListTitleDraft(event.target.value)} maxLength={40} autoFocus aria-label="일정 목록 제목" /><button type="submit">저장</button><button type="button" onClick={() => setEditingListTitle(false)}>취소</button></form> : <div className="list-title-row"><h1>{currentListTitle}</h1><button onClick={beginListTitleEdit} aria-label="목록 제목 수정" title="제목 수정">✎</button></div>}<p>날짜와 시간을 선택하면 일정이 자동으로 정리돼요.</p></div><button className="mobile-close" onClick={() => setMobileSchedule(false)} aria-label="지도 보기">×</button></div>
         <div className="date-navigation" aria-label="여행 날짜 선택">
           <button disabled={!previousDate} onClick={() => previousDate && chooseDate(previousDate)} aria-label="일정이 있는 이전 날짜">‹</button>
           <label><span>{relativeDateLabel(selectedDate, today)}</span><input type="date" value={selectedDate} onChange={(event) => chooseDate(event.target.value)} aria-label="날짜 직접 선택" /></label>
           <button disabled={!nextDate} onClick={() => nextDate && chooseDate(nextDate)} aria-label="일정이 있는 다음 날짜">›</button>
         </div>
-        <div className="now-card"><span className="live-dot" /><div><small>{selectedDate === today ? `지금 ${now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}` : formatDate(selectedDate)}</small><strong>{timeline.label}</strong></div><span className="weather">☀︎ 24°</span></div>
         <div className="drag-guide"><span>⋮⋮</span><p><strong>드래그로 일정 편집</strong>확정 일정과 후보를 서로 옮길 수 있어요.</p><button onClick={openAddPlace}>＋ 추가</button></div>
 
         <div className="timeline-list">

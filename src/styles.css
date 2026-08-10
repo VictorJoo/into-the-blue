@@ -125,12 +125,6 @@ button { color: inherit; }
 .account-trip-select small { color: #8c9590; font-size: 8px; }
 .account-trip-delete { margin-right: 7px; padding: 6px 7px; border: 0; border-radius: 7px; background: transparent; color: #b56b5e; font-size: 8px; cursor: pointer; }
 .account-trip-delete:hover { background: #fbe9e5; }
-.account-import-itinerary { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 8px; width: calc(100% - 14px); margin: 4px 7px 8px; padding: 10px; border: 1px solid #d7e2d8; border-radius: 10px; background: #f1f6ef; color: var(--forest); text-align: left; cursor: pointer; }
-.account-import-itinerary > span:first-child { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--forest); color: white; font-size: 14px; }
-.account-import-itinerary > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.account-import-itinerary strong { font-size: 9px; }
-.account-import-itinerary small { color: #7f8b84; font-size: 7px; }
-.account-import-itinerary:hover { border-color: #b9cdbd; background: #e8f1e8; }
 .account-signout { width: 100%; padding: 12px 15px; border: 0; border-top: 1px solid #ebe6dd; background: white; color: #69746e; font-size: 9px; font-weight: 700; text-align: left; cursor: pointer; }
 .account-signout:hover { background: #f7f5ef; }
 .share-button {
@@ -200,21 +194,6 @@ button { color: inherit; }
 .date-navigation label span { font-size: 10px; font-weight: 700; }
 .date-navigation input { width: 112px; border: 0; outline: 0; background: transparent; color: #68736e; font-size: 9px; cursor: pointer; }
 
-.now-card {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin: 0 34px 26px 42px;
-  padding: 12px 14px;
-  border: 1px solid #dbe1d9;
-  border-radius: 12px;
-  background: #f2f4ed;
-}
-.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 5px rgba(239,118,95,.13); }
-.now-card div { display: flex; flex-direction: column; gap: 2px; }
-.now-card small { color: #7b8781; font-size: 10px; }
-.now-card strong { color: var(--forest); font-size: 12px; }
-.weather { margin-left: auto; color: #8d7653; font-size: 12px; }
 .drag-guide { display: flex; align-items: center; gap: 9px; margin: -12px 34px 25px 42px; padding: 9px 11px; border-radius: 10px; background: #fff; color: #8b938e; box-shadow: 0 5px 18px rgba(35,61,51,.05); }
 .drag-guide > span { color: #9ba39f; font-size: 16px; letter-spacing: -4px; cursor: grab; }
 .drag-guide p { display: flex; flex: 1; flex-direction: column; gap: 1px; margin: 0; font-size: 9px; }
@@ -489,7 +468,6 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
   .date-navigation label { height: 40px; }
   .date-navigation label span { font-size: 11px; }
   .date-navigation input { font-size: 10px; }
-  .now-card { margin: 0 20px 20px; }
   .drag-guide { margin: 0 20px 22px; }
   .timeline-list { padding: 1px 18px 90px 22px; }
   .timeline-track { left: 37px; }
@@ -521,7 +499,7 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
   .date-navigation { margin: 0 16px 14px; }
   .date-navigation label { padding: 0 8px; }
   .date-navigation input { width: 108px; }
-  .now-card, .drag-guide { margin-left: 16px; margin-right: 16px; }
+  .drag-guide { margin-left: 16px; margin-right: 16px; }
   .timeline-list { padding-left: 16px; padding-right: 12px; }
   .timeline-track { left: 31px; }
   .schedule-item { grid-template-columns: 32px 42px 1fr; }

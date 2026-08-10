@@ -3,6 +3,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import type { Session, User } from "@supabase/supabase-js";
 import { signInWithKakao, signOut } from "./lib/auth";
 import { supabase } from "./lib/supabase";
+import { createPhuQuocItinerary, PHU_QUOC_DATES, PHU_QUOC_LIST_TITLES } from "./data/phuQuocItinerary";
 
 export type MemberProfile = {
   id: string;
@@ -126,6 +127,7 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
   const loadWorkspace = useCallback(async (currentSession: Session) => {
     const user = currentSession.user;
     let acceptedTripId: string | undefined;
+    const shouldProvisionPhuQuoc = new URL(window.location.href).searchParams.get("provision") === "phu-quoc-2026";
     await supabase.from("profiles").upsert({ id: user.id, nickname: metadataName(user), avatar_url: metadataAvatar(user) }, { onConflict: "id" });
     if (inviteToken) {
       const { data, error } = await supabase.rpc("accept_invite", { p_token: inviteToken });
@@ -137,20 +139,55 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
       }
     }
     const { data: memberships } = await supabase.from("trip_members").select("trip_id,role,joined_at").eq("user_id", user.id).order("joined_at", { ascending: true });
-    if (!memberships?.length) {
+    if (!memberships?.length && !shouldProvisionPhuQuoc) {
       setTrips([]);
       setTrip(null);
       setMembers([]);
       setLoading(false);
       return;
     }
-    const tripIds = memberships.map((membership) => membership.trip_id);
-    const { data: tripRows } = await supabase.from("trips").select("id,name,owner_id").in("id", tripIds);
+    const membershipRows = memberships ?? [];
+    const tripIds = membershipRows.map((membership) => membership.trip_id);
+    const { data: tripRows } = tripIds.length
+      ? await supabase.from("trips").select("id,name,owner_id").in("id", tripIds)
+      : { data: [] };
     const rowsById = new Map((tripRows ?? []).map((row) => [row.id, row]));
-    const nextTrips = memberships.flatMap((membership) => {
+    let nextTrips = membershipRows.flatMap((membership) => {
       const row = rowsById.get(membership.trip_id);
       return row ? [{ ...row, role: membership.role as "owner" | "member" }] : [];
     });
+    if (shouldProvisionPhuQuoc) {
+      const existingTrip = nextTrips.find((item) => item.name === "푸꾸옥 그룹 여행" && item.role === "owner");
+      if (existingTrip) {
+        acceptedTripId = existingTrip.id;
+      } else {
+        const { data: createdTripId, error: createError } = await supabase.rpc("create_trip", { p_name: "푸꾸옥 그룹 여행" });
+        if (!createError && createdTripId) {
+          const itinerary = createPhuQuocItinerary(user.id, metadataName(user));
+          const { error: documentError } = await supabase.from("trip_documents").upsert(PHU_QUOC_DATES.map((date) => ({
+            trip_id: createdTripId,
+            trip_date: date,
+            list_title: PHU_QUOC_LIST_TITLES[date],
+            schedule: itinerary[date],
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          })), { onConflict: "trip_id,trip_date" });
+          if (documentError) {
+            await supabase.rpc("delete_trip", { p_trip_id: createdTripId });
+            setInviteError("푸꾸옥 일정을 만들지 못했습니다. 잠시 후 다시 시도해주세요.");
+          } else {
+            const createdTrip: WorkspaceTrip = { id: createdTripId, name: "푸꾸옥 그룹 여행", owner_id: user.id, role: "owner" };
+            nextTrips = [...nextTrips, createdTrip];
+            acceptedTripId = createdTripId;
+          }
+        } else {
+          setInviteError("푸꾸옥 일정을 만들지 못했습니다. 잠시 후 다시 시도해주세요.");
+        }
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("provision");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
     setTrips(nextTrips);
     const savedTripId = localStorage.getItem(`into-the-blue-active-trip:${user.id}`);
     const nextTrip = nextTrips.find((item) => item.id === acceptedTripId)
