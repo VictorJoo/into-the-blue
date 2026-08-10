@@ -49,15 +49,12 @@ begin
     then raise exception 'Invite is invalid or expired';
   end if;
 
-  if matched.used_at is not null then
-    if matched.used_by = auth.uid() then return matched.trip_id; end if;
-    raise exception 'Invite has already been used';
-  end if;
-
   insert into public.trip_members (trip_id, user_id, role)
   values (matched.trip_id, auth.uid(), 'member')
   on conflict (trip_id, user_id) do nothing;
 
+  -- Keep the most recent redemption for operational visibility. A valid link
+  -- remains reusable by other authenticated users until it expires or is revoked.
   update public.invites set used_at = now(), used_by = auth.uid()
   where id = matched.id;
 

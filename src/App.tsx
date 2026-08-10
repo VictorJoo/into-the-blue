@@ -1164,7 +1164,7 @@ export default function App() {
           <div className="people" aria-label={`함께 여행하는 사람 ${members.length}명`}>{members.slice(0, 4).map((member) => <span key={member.id} title={member.nickname}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : member.nickname.slice(0, 1)}</span>)}</div>
           <button className="pdf-button" onClick={exportItineraryPdf} disabled={!scheduledDates.length} aria-label="전체 일정 PDF 저장"><span>⇩</span> PDF 저장</button>
           <button className="add-place-button" onClick={openAddPlace}><span>＋</span> 장소 추가</button>
-          {role === "owner" && <button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={createInviteLink}><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "초대 링크"}</button>}
+          {role === "owner" && <button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={createInviteLink} title="7일 동안 여러 명이 사용할 수 있는 초대 링크"><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "초대 링크"}</button>}
           <div className="account-menu-wrap">
             <button className="account-button" onClick={() => { setAccountOpen((value) => !value); setTripForm(null); setTripFormError(""); }} title="내 여행 일정" aria-label="내 여행 일정 열기" aria-expanded={accountOpen}>{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</button>
             {accountOpen && (
