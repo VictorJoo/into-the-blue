@@ -6,11 +6,6 @@ function safe(value: string) {
   return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!);
 }
 
-function cleanCategory(value?: string) {
-  const category = value?.trim() ?? "";
-  return category === "Google Maps 장소" ? "" : category;
-}
-
 function placePopup(
   place: Place,
   commentCount: number,
@@ -25,7 +20,7 @@ function placePopup(
   const title = document.createElement("strong");
   title.textContent = place.title;
   const meta = document.createElement("small");
-  meta.textContent = [place.time, cleanCategory(place.category)].filter(Boolean).join(" · ");
+  meta.textContent = place.time;
   copy.append(title, meta);
 
   const actions = document.createElement("div");
@@ -49,8 +44,7 @@ function placePopup(
 }
 
 function candidatePopup(candidate: Candidate, reviewUrl: string) {
-  const meta = ["후보", cleanCategory(candidate.category)].filter(Boolean).join(" · ");
-  return `<div class="map-popup-content"><div class="map-popup-copy"><strong>${safe(candidate.title)}</strong><small>${safe(meta)}</small></div><div class="map-popup-actions"><a href="${safe(reviewUrl)}" target="_blank" rel="noreferrer">링크 ↗</a></div></div>`;
+  return `<div class="map-popup-content"><div class="map-popup-copy"><strong>${safe(candidate.title)}</strong><small>후보 · ${safe(candidate.time)}</small></div><div class="map-popup-actions"><a href="${safe(reviewUrl)}" target="_blank" rel="noreferrer">링크 ↗</a></div></div>`;
 }
 
 export default function MapView({

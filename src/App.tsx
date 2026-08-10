@@ -62,14 +62,6 @@ function cleanPlaceLabel(value?: string) {
   return label === "시간 미정" || label === "Google Maps 장소" ? "" : label;
 }
 
-function primaryMeta(place: Pick<Place, "category" | "duration">) {
-  return [cleanPlaceLabel(place.category), cleanPlaceLabel(place.duration)].filter(Boolean).join(" · ");
-}
-
-function candidateMeta(candidate: Pick<Candidate, "time" | "category">) {
-  return [candidate.time, cleanPlaceLabel(candidate.category)].filter(Boolean).join(" · ");
-}
-
 function sortCandidates(items: Candidate[]) {
   return [...items]
     .map((candidate) => ({ ...candidate, category: cleanPlaceLabel(candidate.category) }))
@@ -264,7 +256,7 @@ function AddPlacePanel({
     <div className="add-panel" role="dialog" aria-modal="true" aria-label="새 장소 추가">
       <div className="popover-heading">
         <div><span className="eyebrow">FREE PLACE SEARCH</span><h3>새 장소 추가</h3></div>
-        <button className="icon-button" onClick={onClose} aria-label="장소 추가 닫기">×</button>
+        <button className="icon-button" onClick={onClose} aria-label="장소 추가 닫기" />
       </div>
       <p className="search-description">Google 지도에서 장소를 검색하거나 전체 링크를 붙여넣은 뒤 일정 정보를 입력하세요.</p>
       <form className="place-form" onSubmit={submit}>
@@ -398,7 +390,7 @@ function EditPlacePanel({
     <div className="add-panel edit-panel" role="dialog" aria-modal="true" aria-label={`${item.title} 수정`}>
       <div className="popover-heading">
         <div><span className="eyebrow">EDIT PLACE</span><h3>{candidate ? "후보 수정" : "일정 수정"}</h3></div>
-        <button className="icon-button" onClick={onClose} aria-label="수정 창 닫기">×</button>
+        <button className="icon-button" onClick={onClose} aria-label="수정 창 닫기" />
       </div>
       <form className="place-form" onSubmit={submit}>
         <label className="field-label">Google Maps 링크</label>
@@ -465,7 +457,7 @@ function CommentPopover({
 
   return (
     <div className="comment-popover" role="dialog" aria-modal="true" aria-label={`${place.title} 댓글`}>
-      <div className="popover-heading"><div><span className="eyebrow">함께 정하기</span><h3>{place.title} 댓글</h3></div><button className="icon-button" onClick={onClose} aria-label="댓글 닫기">×</button></div>
+      <div className="popover-heading"><div><span className="eyebrow">함께 정하기</span><h3>{place.title} 댓글</h3></div><button className="icon-button" onClick={onClose} aria-label="댓글 닫기" /></div>
       <div className="comment-list">
         {comments.length === 0 && <p className="empty-comment">첫 의견을 남겨보세요.</p>}
         {comments.map((comment) => <article className="comment" key={comment.id}><div className="avatar">{comment.avatarUrl ? <img src={comment.avatarUrl} alt="" /> : comment.name.slice(0, 1)}</div><div><div className="comment-meta"><strong>{comment.name}</strong><span>{comment.createdAt}</span></div><p>{comment.content}</p></div></article>)}
@@ -1037,9 +1029,8 @@ export default function App() {
               <div class="time-column"><strong>${escapeHtml(place.time)}</strong><span>${placeIndex + 1}</span></div>
               <div class="place-body">
                 <div class="place-title"><h3>${escapeHtml(place.title)}</h3><b>확정</b></div>
-                ${primaryMeta(place) ? `<p class="meta">${escapeHtml(primaryMeta(place))}</p>` : ""}
                 ${place.note ? `<p class="memo">${noteHtml(place.note)}</p>` : ""}
-                ${place.alternatives.length ? `<div class="candidates"><h4>후보 장소</h4>${sortCandidates(place.alternatives).map((candidate) => `<div class="candidate"><div><strong>${escapeHtml(candidate.title)}</strong><span>${escapeHtml(candidateMeta(candidate))}</span>${candidate.note ? `<p>${noteHtml(candidate.note)}</p>` : ""}</div><a href="${escapeHtml(googleReviewsUrl(candidate))}">Google 리뷰</a></div>`).join("")}</div>` : ""}
+                ${place.alternatives.length ? `<div class="candidates"><h4>후보 장소</h4>${sortCandidates(place.alternatives).map((candidate) => `<div class="candidate"><div><strong>${escapeHtml(candidate.title)}</strong><span>${escapeHtml(candidate.time)}</span>${candidate.note ? `<p>${noteHtml(candidate.note)}</p>` : ""}</div><a href="${escapeHtml(googleReviewsUrl(candidate))}">Google 리뷰</a></div>`).join("")}</div>` : ""}
                 <a class="review-link" href="${escapeHtml(googleReviewsUrl(place))}">Google 리뷰 보기</a>
               </div>
             </article>`).join("")}
@@ -1163,15 +1154,17 @@ export default function App() {
                   onDragEnter={() => setDropZone(`primary:${place.id}`)}
                   onDrop={(event) => dropOnPrimary(event, place.id)}
                 >
-                  <button className="place-main" onClick={() => selectPlace(place.id)}><span className="drag-handle" aria-hidden="true">⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span>{primaryMeta(place) && <span>{primaryMeta(place)}</span>}{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span><span className="chevron">›</span></button>
+                  <button className="corner-edit-button" onClick={() => requestPrimaryEdit(place.id)} aria-label={`${place.title} 수정`} title="수정">✎</button>
+                  <button className="place-main" onClick={() => { selectPlace(place.id); if (place.alternatives.length) setExpanded((value) => ({ ...value, [place.id]: true })); }}><span className="drag-handle" aria-hidden="true">⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span>{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span></button>
                   <p className={`place-note ${place.note ? "" : "is-empty"}`}>{place.note || "메모를 추가해보세요."}</p>
-                  <div className="card-actions"><button onClick={() => setExpanded((value) => ({ ...value, [place.id]: !value[place.id] }))} aria-expanded={showCandidates}>후보 {place.alternatives.length} <b className={showCandidates ? "up" : ""}>⌄</b></button><button className="edit-item-button" onClick={() => requestPrimaryEdit(place.id)} aria-label={`${place.title} 수정`} title="수정">✎</button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
+                  <div className="card-actions"><button onClick={() => setExpanded((value) => ({ ...value, [place.id]: !value[place.id] }))} aria-expanded={showCandidates}>후보 {place.alternatives.length} <b className={showCandidates ? "up" : ""}>⌄</b></button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
                   {showCandidates && (
                     <div className={`alternatives ${dropZone === `candidate:${place.id}` ? "is-drop-target" : ""}`} onDragOver={(event) => event.preventDefault()} onDragEnter={() => setDropZone(`candidate:${place.id}`)} onDrop={(event) => dropOnCandidates(event, place.id)}>
                       {place.alternatives.map((candidate) => (
                         <div className="alternative-row" draggable key={candidate.id} onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id }); }} onDragEnd={finishDrag}>
-                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag">⋮</span><span><strong>{candidate.title}</strong><small>{candidateMeta(candidate)}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
-                          <div className="candidate-actions"><span className="candidate-badge">후보</span><button className="edit-item-button" onClick={() => requestCandidateEdit(place.id, candidate.id)} aria-label={`${candidate.title} 수정`} title="수정">✎</button><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
+                          <button className="corner-edit-button candidate-corner-edit" onClick={() => requestCandidateEdit(place.id, candidate.id)} aria-label={`${candidate.title} 수정`} title="수정">✎</button>
+                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag">⋮</span><span><strong>{candidate.title}</strong><small>{candidate.time}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
+                          <div className="candidate-actions"><span className="candidate-badge">후보</span><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
                         </div>
                       ))}
                       <div className="candidate-drop-hint">이곳에 놓으면 후보로 이동</div>
