@@ -56,7 +56,7 @@ function LoginPage({ inviteToken }: { inviteToken?: string }) {
   return (
     <main className="auth-page">
       <section className="auth-card">
-        <div className="auth-brand"><span>여</span><strong>Into the Blue</strong></div>
+        <div className="auth-brand"><strong>SURABUL TOUR</strong><span>MAP THE MOMENTS · KEEP THE JOURNEY</span></div>
         <p className="auth-eyebrow">SHARED TRAVEL PLANNER</p>
         <h1>함께 만드는 여행 일정</h1>
         <p className="auth-description">초대받은 여행자들과 장소, 후보, 메모와 의견을 한곳에서 정리하세요.</p>

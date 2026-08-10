@@ -1120,7 +1120,10 @@ export default function App() {
   return (
     <main className="app-shell" style={appStyle}>
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="여정 홈"><span>여</span>정</a>
+        <a className="brand" href="#top" aria-label="SURABUL TOUR 홈">
+          <strong>SURABUL TOUR</strong>
+          <span>MAP THE MOMENTS <i aria-hidden="true">·</i> KEEP THE JOURNEY</span>
+        </a>
         <div className="trip-title"><strong>{trip.name}</strong><span>{tripDateRange}</span></div>
         <div className="top-actions">
           <div className="people" aria-label={`함께 여행하는 사람 ${members.length}명`}>{members.slice(0, 4).map((member) => <span key={member.id} title={member.nickname}>{member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : member.nickname.slice(0, 1)}</span>)}</div>

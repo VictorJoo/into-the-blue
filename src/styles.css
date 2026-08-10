@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap");
 
 :root {
   font-family: "Noto Sans KR", sans-serif;
@@ -24,9 +24,9 @@ button { color: inherit; }
 
 .auth-page, .data-loading { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 18% 12%, rgba(239,118,95,.16), transparent 32%), linear-gradient(145deg, #f8f3e9, #e7efe9); }
 .auth-card { width: min(430px, 100%); padding: 38px; border: 1px solid rgba(255,255,255,.9); border-radius: 28px; background: rgba(255,253,248,.94); box-shadow: 0 30px 90px rgba(23,63,54,.18); }
-.auth-brand { display: flex; align-items: center; gap: 10px; color: var(--forest); }
-.auth-brand span { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--forest); border-radius: 50%; font-family: "Gowun Batang", serif; font-size: 19px; }
-.auth-brand strong { font-family: "Gowun Batang", serif; font-size: 18px; }
+.auth-brand { display: flex; flex-direction: column; align-items: flex-start; color: var(--forest); }
+.auth-brand strong { font-family: "Cormorant Garamond", serif; font-size: 29px; line-height: .9; letter-spacing: .08em; }
+.auth-brand span { margin-top: 7px; color: var(--coral); font-size: 7px; font-weight: 700; letter-spacing: .18em; }
 .auth-eyebrow { margin: 34px 0 8px; color: var(--coral); font-size: 9px; font-weight: 800; letter-spacing: .16em; }
 .auth-card h1 { margin: 0; color: var(--forest); font-family: "Gowun Batang", serif; font-size: 32px; line-height: 1.25; }
 .auth-description { margin: 15px 0 24px; color: #6d7973; font-size: 13px; line-height: 1.75; }
@@ -69,24 +69,18 @@ button { color: inherit; }
 }
 
 .brand {
-  padding-left: 30px;
-  font-family: "Gowun Batang", serif;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: .12em;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  align-self: stretch;
+  flex-direction: column;
+  padding: 0 24px 0 30px;
   color: var(--forest);
   text-decoration: none;
 }
-.brand span {
-  display: inline-grid;
-  place-items: center;
-  width: 31px;
-  height: 31px;
-  margin-right: 5px;
-  border: 1px solid var(--forest);
-  border-radius: 50% 50% 46% 52%;
-  font-size: 16px;
-}
+.brand strong { font-family: "Cormorant Garamond", serif; font-size: 29px; font-weight: 700; line-height: .88; letter-spacing: .07em; }
+.brand span { margin-top: 6px; color: #8c6f5d; font-size: 7px; font-weight: 700; line-height: 1; letter-spacing: .19em; }
+.brand i { color: var(--coral); font-style: normal; }
 .trip-title { display: flex; align-items: baseline; gap: 13px; padding-left: 27px; }
 .trip-title strong { font-size: 15px; }
 .trip-title span { font-size: 13px; color: var(--muted); }
@@ -469,8 +463,9 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
   .account-menu-backdrop { inset: 60px 0 0; }
   .app-shell { display: grid; grid-template: 60px calc(100dvh - 60px) / 1fr; }
   .topbar { grid-column: 1; grid-template-columns: auto minmax(0, 1fr) auto; height: 60px; padding: 0 12px 0 14px; }
-  .brand { padding-left: 0; font-size: 0; }
-  .brand span { margin-right: 0; font-size: 16px; }
+  .brand { min-width: 116px; padding: 0; }
+  .brand strong { font-size: 19px; letter-spacing: .045em; white-space: nowrap; }
+  .brand span { display: none; }
   .trip-title { display: flex; min-width: 0; padding-left: 10px; }
   .trip-title strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
   .trip-title span { display: none; }
@@ -511,7 +506,8 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
 
 @media (max-width: 480px) {
   .people { display: none; }
-  .brand span { width: 29px; height: 29px; }
+  .brand { min-width: 103px; }
+  .brand strong { font-size: 17px; }
   .top-actions .add-place-button, .top-actions .pdf-button, .top-actions .share-button { width: 38px; height: 38px; justify-content: center; padding: 0; font-size: 0; }
   .top-actions .add-place-button span, .top-actions .pdf-button span, .top-actions .share-button span { min-width: 0; margin: 0; font-size: 15px; }
   .schedule-header { padding: 21px 18px 14px; }
