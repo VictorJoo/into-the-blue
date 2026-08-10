@@ -730,6 +730,14 @@ export default function App() {
     if (window.innerWidth < 840) setMobileSchedule(false);
   }, []);
 
+  const openCandidateList = (placeId: string) => {
+    setExpanded((current) => current[placeId] ? current : { ...current, [placeId]: true });
+  };
+
+  const toggleCandidateList = (placeId: string) => {
+    setExpanded((current) => ({ ...current, [placeId]: !(current[placeId] ?? false) }));
+  };
+
   const openMapComments = useCallback((id: string) => {
     setFocusPoint(null);
     setSelectedId(id);
@@ -1212,30 +1220,29 @@ export default function App() {
           {places.length === 0 && <div className="empty-schedule"><span>빈 하루</span><h2>아직 등록된 일정이 없어요</h2><p>이 날짜에 가고 싶은 장소를 추가해보세요.</p><button onClick={openAddPlace}>＋ 첫 장소 추가</button></div>}
           {places.map((place, index) => {
             const commentCount = comments[place.id]?.length ?? 0;
-            const showCandidates = !!expanded[place.id] || !!dragged;
+            const isCandidateListOpen = expanded[place.id] ?? false;
+            const showCandidates = isCandidateListOpen || Boolean(dragged);
+            const candidateListId = `candidate-list-${place.id}`;
             return (
               <article className={`schedule-item ${selectedId === place.id ? "is-selected" : ""} ${index === timeline.active ? "is-current" : ""}`} key={place.id}>
                 <button className={`time-pin ${index < timeline.active ? "is-past" : ""} ${index === timeline.active ? "is-active" : ""}`} onClick={() => selectPlace(place.id)} aria-label={`${place.time} ${place.title} 지도에서 보기`}><span>{index < timeline.active ? "✓" : index + 1}</span></button>
                 <time>{place.time}</time>
                 <div
                   className={`place-card ${dropZone === `primary:${place.id}` ? "is-drop-target" : ""}`}
-                  draggable
-                  onDragStart={(event) => startDrag(event, { kind: "primary", placeId: place.id })}
-                  onDragEnd={finishDrag}
                   onDragOver={(event) => event.preventDefault()}
                   onDragEnter={() => setDropZone(`primary:${place.id}`)}
                   onDrop={(event) => dropOnPrimary(event, place.id)}
                 >
                   <button className="corner-edit-button" onClick={() => requestPrimaryEdit(place.id)} aria-label={`${place.title} 수정`} title="수정">✎</button>
-                  <button className="place-main" onClick={() => { selectPlace(place.id); if (place.alternatives.length) setExpanded((value) => ({ ...value, [place.id]: true })); }}><span className="drag-handle" aria-hidden="true">⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span>{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span></button>
+                  <button className="place-main" onClick={() => { selectPlace(place.id); if (place.alternatives.length) openCandidateList(place.id); }}><span className="drag-handle" draggable onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "primary", placeId: place.id }); }} onDragEnd={finishDrag} title="드래그하여 일정 이동">⋮</span><span className="place-copy"><span className="place-topline"><strong>{place.title}</strong><em>확정</em></span>{place.createdByName && <small className="created-by">{place.createdByName}님이 추가</small>}</span></button>
                   <p className={`place-note ${place.note ? "" : "is-empty"}`}>{place.note || "메모를 추가해보세요."}</p>
-                  <div className="card-actions"><button onClick={() => setExpanded((value) => ({ ...value, [place.id]: !value[place.id] }))} aria-expanded={showCandidates}>후보 {place.alternatives.length} <b className={showCandidates ? "up" : ""}>⌄</b></button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
+                  <div className="card-actions"><button onClick={() => toggleCandidateList(place.id)} aria-expanded={isCandidateListOpen} aria-controls={candidateListId}>후보 {place.alternatives.length} <b className={isCandidateListOpen ? "up" : ""}>⌄</b></button><button className={commentPlace === place.id ? "active" : ""} onClick={() => setCommentPlace(commentPlace === place.id ? null : place.id)}>댓글 {commentCount}</button><a href={googleReviewsUrl(place)} target="_blank" rel="noreferrer">Google 리뷰 ↗</a><button className="delete-item-button" onClick={() => requestPrimaryDelete(place)}>삭제</button></div>
                   {showCandidates && (
-                    <div className={`alternatives ${dropZone === `candidate:${place.id}` ? "is-drop-target" : ""}`} onDragOver={(event) => event.preventDefault()} onDragEnter={() => setDropZone(`candidate:${place.id}`)} onDrop={(event) => dropOnCandidates(event, place.id)}>
+                    <div id={candidateListId} className={`alternatives ${dropZone === `candidate:${place.id}` ? "is-drop-target" : ""}`} onDragOver={(event) => event.preventDefault()} onDragEnter={() => setDropZone(`candidate:${place.id}`)} onDrop={(event) => dropOnCandidates(event, place.id)}>
                       {place.alternatives.map((candidate) => (
-                        <div className="alternative-row" draggable key={candidate.id} onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id }); }} onDragEnd={finishDrag}>
+                        <div className="alternative-row" key={candidate.id}>
                           <button className="corner-edit-button candidate-corner-edit" onClick={() => requestCandidateEdit(place.id, candidate.id)} aria-label={`${candidate.title} 수정`} title="수정">✎</button>
-                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag">⋮</span><span><strong>{candidate.title}</strong><small>{candidate.time}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
+                          <button className="candidate-main" onClick={() => { setSelectedId(place.id); setFocusPoint({ coords: candidate.coords, name: candidate.title, token: Date.now() }); if (window.innerWidth < 840) setMobileSchedule(false); }}><span className="candidate-drag" draggable onDragStart={(event) => { event.stopPropagation(); startDrag(event, { kind: "candidate", placeId: place.id, candidateId: candidate.id }); }} onDragEnd={finishDrag} title="드래그하여 후보 이동">⋮</span><span><strong>{candidate.title}</strong><small>{candidate.time}</small>{candidate.createdByName && <small className="created-by">{candidate.createdByName}님이 추가</small>}<span className={`candidate-note-preview ${candidate.note ? "" : "is-empty"}`}>{candidate.note || "메모를 추가해보세요."}</span></span></button>
                           <div className="candidate-actions"><span className="candidate-badge">후보</span><a href={googleReviewsUrl(candidate)} target="_blank" rel="noreferrer" aria-label={`${candidate.title} Google 리뷰 보기`}>링크 ↗</a><button className="candidate-delete" onClick={() => requestCandidateDelete(place.id, candidate.id)} aria-label={`${candidate.title} 후보 삭제`}>삭제</button></div>
                         </div>
                       ))}

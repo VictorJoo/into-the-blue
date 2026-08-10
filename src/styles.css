@@ -241,8 +241,8 @@ button { color: inherit; }
 .time-pin.is-active { border-color: var(--coral); box-shadow: 0 0 0 6px rgba(239,118,95,.13); color: var(--coral); }
 .schedule-item time { padding: 8px 0 0 9px; color: #737e78; font-size: 11px; font-weight: 600; }
 .place-card { position: relative; min-width: 0; margin-bottom: 15px; border: 1px solid transparent; border-radius: 14px; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.place-card[draggable="true"] { cursor: grab; }
-.place-card[draggable="true"]:active { cursor: grabbing; }
+.drag-handle[draggable="true"], .candidate-drag[draggable="true"] { cursor: grab; }
+.drag-handle[draggable="true"]:active, .candidate-drag[draggable="true"]:active { cursor: grabbing; }
 .place-card.is-drop-target { border-color: var(--coral); box-shadow: 0 0 0 4px rgba(239,118,95,.12), 0 12px 28px rgba(35,61,51,.09); transform: translateY(-2px); }
 .schedule-item.is-selected .place-card { border-color: #d7ded7; background: white; box-shadow: 0 11px 28px rgba(35, 61, 51, .08); }
 .place-main {
@@ -278,7 +278,6 @@ button { color: inherit; }
 .candidate-main { display: grid; grid-template-columns: 12px 1fr; align-items: center; gap: 8px; width: 100%; padding: 8px 38px 8px 2px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
 .candidate-main:hover { background: #faf8f3; }
 .candidate-main > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; }
-.alternative-row[draggable="true"] { cursor: grab; }
 .candidate-drag { color: #a4aaa5; font-size: 15px; cursor: grab; }
 .candidate-actions { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 0 20px; }
 .candidate-actions > button, .candidate-actions > a, .candidate-actions > span { display: flex; align-items: center; padding: 6px 8px; border: 1px solid #d8e1e8; border-radius: 6px; background: #f1f6f9; color: #53758a; font-size: 9px; font-weight: 600; line-height: 1; text-decoration: none; cursor: pointer; }
