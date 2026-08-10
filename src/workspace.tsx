@@ -27,6 +27,8 @@ type WorkspaceValue = {
   role: "owner" | "member";
   members: MemberProfile[];
   selectTrip: (tripId: string) => void;
+  createTrip: (name: string) => Promise<string | null>;
+  renameTrip: (tripId: string, name: string) => Promise<string | null>;
   deleteTrip: (tripId: string) => Promise<string | null>;
 };
 
@@ -203,6 +205,38 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
     if (nextTrip) void activateTrip(nextTrip, session.user.id);
   }, [activateTrip, session, trip?.id, trips]);
 
+  const createTrip = useCallback(async (name: string) => {
+    if (!session) return "로그인 정보를 확인하지 못했습니다.";
+    const nextName = name.trim();
+    if (!nextName) return "여행 제목을 입력해주세요.";
+    const { data: createdTripId, error } = await supabase.rpc("create_trip", { p_name: nextName });
+    if (error || !createdTripId) return "새 여행을 만들지 못했습니다. 잠시 후 다시 시도해주세요.";
+
+    const createdTrip: WorkspaceTrip = {
+      id: createdTripId,
+      name: nextName,
+      owner_id: session.user.id,
+      role: "owner",
+    };
+    setTrips((current) => [...current, createdTrip]);
+    await activateTrip(createdTrip, session.user.id);
+    return null;
+  }, [activateTrip, session]);
+
+  const renameTrip = useCallback(async (tripId: string, name: string) => {
+    if (!session) return "로그인 정보를 확인하지 못했습니다.";
+    const target = trips.find((item) => item.id === tripId);
+    if (!target || target.role !== "owner") return "여행을 만든 사람만 제목을 수정할 수 있습니다.";
+    const nextName = name.trim();
+    if (!nextName) return "여행 제목을 입력해주세요.";
+    const { error } = await supabase.rpc("rename_trip", { p_trip_id: tripId, p_name: nextName });
+    if (error) return "여행 제목을 수정하지 못했습니다. 데이터베이스 마이그레이션을 확인해주세요.";
+
+    setTrips((current) => current.map((item) => item.id === tripId ? { ...item, name: nextName } : item));
+    setTrip((current) => current?.id === tripId ? { ...current, name: nextName } : current);
+    return null;
+  }, [session, trips]);
+
   const deleteTrip = useCallback(async (tripId: string) => {
     if (!session) return "로그인 정보를 확인하지 못했습니다.";
     const target = trips.find((item) => item.id === tripId);
@@ -256,6 +290,8 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
     role,
     members,
     selectTrip,
+    createTrip,
+    renameTrip,
     deleteTrip,
   };
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

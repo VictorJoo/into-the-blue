@@ -19,6 +19,7 @@ pnpm dev
 1. [`supabase/migrations/202608100001_collaboration.sql`](supabase/migrations/202608100001_collaboration.sql)
 2. [`supabase/migrations/202608100002_trip_management.sql`](supabase/migrations/202608100002_trip_management.sql)
 3. [`supabase/migrations/202608100003_fix_invite_crypto_schema.sql`](supabase/migrations/202608100003_fix_invite_crypto_schema.sql)
+4. [`supabase/migrations/202608100004_rename_trip.sql`](supabase/migrations/202608100004_rename_trip.sql)
 
 필수 공개 환경변수는 `.env.example`을 참고해 로컬 `.env.local`과 Cloudflare Workers Builds에 설정합니다.
 

@@ -525,7 +525,7 @@ function TripDeleteDialog({
 }
 
 export default function App() {
-  const { user, userName, avatarUrl, trip, trips, role, members, selectTrip, deleteTrip } = useWorkspace();
+  const { user, userName, avatarUrl, trip, trips, role, members, selectTrip, createTrip, renameTrip, deleteTrip } = useWorkspace();
   const today = dateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [lastAddDate, setLastAddDate] = useState(() => {
@@ -557,6 +557,10 @@ export default function App() {
   const [editingListTitle, setEditingListTitle] = useState(false);
   const [listTitleDraft, setListTitleDraft] = useState("");
   const [accountOpen, setAccountOpen] = useState(false);
+  const [tripForm, setTripForm] = useState<{ mode: "create" } | { mode: "rename"; trip: WorkspaceTrip } | null>(null);
+  const [tripNameDraft, setTripNameDraft] = useState("");
+  const [tripFormBusy, setTripFormBusy] = useState(false);
+  const [tripFormError, setTripFormError] = useState("");
   const [tripToDelete, setTripToDelete] = useState<WorkspaceTrip | null>(null);
   const [tripDeleteBusy, setTripDeleteBusy] = useState(false);
 
@@ -992,11 +996,52 @@ export default function App() {
 
   const chooseTrip = (tripId: string) => {
     setAccountOpen(false);
+    setTripForm(null);
     setCommentPlace(null);
     setDeleteTarget(null);
     setEditTarget(null);
     setAddOpen(false);
     selectTrip(tripId);
+  };
+
+  const openTripCreate = () => {
+    setTripNameDraft("");
+    setTripFormError("");
+    setTripForm({ mode: "create" });
+  };
+
+  const openTripRename = (targetTrip: WorkspaceTrip) => {
+    setTripNameDraft(targetTrip.name);
+    setTripFormError("");
+    setTripForm({ mode: "rename", trip: targetTrip });
+  };
+
+  const closeTripForm = () => {
+    if (tripFormBusy) return;
+    setTripForm(null);
+    setTripFormError("");
+  };
+
+  const submitTripForm = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!tripForm || tripFormBusy) return;
+    const nextName = tripNameDraft.trim();
+    if (!nextName) {
+      setTripFormError("여행 제목을 입력해주세요.");
+      return;
+    }
+    setTripFormBusy(true);
+    setTripFormError("");
+    const error = tripForm.mode === "create"
+      ? await createTrip(nextName)
+      : await renameTrip(tripForm.trip.id, nextName);
+    setTripFormBusy(false);
+    if (error) {
+      setTripFormError(error);
+      return;
+    }
+    setTripForm(null);
+    if (tripForm.mode === "create") setAccountOpen(false);
   };
 
   const confirmTripDelete = async () => {
@@ -1102,16 +1147,24 @@ export default function App() {
           <button className="add-place-button" onClick={openAddPlace}><span>＋</span> 장소 추가</button>
           {role === "owner" && <button className={`share-button ${shareCopied ? "is-copied" : ""}`} onClick={createInviteLink}><span>{shareCopied ? "✓" : "⧉"}</span> {shareCopied ? "복사됨" : "초대 링크"}</button>}
           <div className="account-menu-wrap">
-            <button className="account-button" onClick={() => setAccountOpen((value) => !value)} title="내 여행 일정" aria-label="내 여행 일정 열기" aria-expanded={accountOpen}>{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</button>
+            <button className="account-button" onClick={() => { setAccountOpen((value) => !value); setTripForm(null); setTripFormError(""); }} title="내 여행 일정" aria-label="내 여행 일정 열기" aria-expanded={accountOpen}>{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</button>
             {accountOpen && (
               <section className="account-menu" aria-label="내 여행 일정">
                 <div className="account-menu-profile"><div className="account-menu-avatar">{avatarUrl ? <img src={avatarUrl} alt="" /> : userName.slice(0, 1)}</div><div><strong>{userName}</strong><span>접근 가능한 여행 {trips.length}개</span></div></div>
-                <div className="account-menu-heading"><span>내 여행 일정</span><small>선택해서 전환</small></div>
+                <div className="account-menu-heading"><div><span>내 여행 일정</span><small>선택해서 전환</small></div><button className="account-new-trip" onClick={openTripCreate}>＋ 새 여행 일정</button></div>
+                {tripForm && (
+                  <form className="account-trip-form" onSubmit={submitTripForm}>
+                    <label htmlFor="account-trip-name">{tripForm.mode === "create" ? "새 여행 제목" : "여행 제목 수정"}</label>
+                    <input id="account-trip-name" value={tripNameDraft} onChange={(event) => setTripNameDraft(event.target.value)} maxLength={40} placeholder="예: 제주도 가족 여행" autoFocus />
+                    {tripFormError && <p role="alert">{tripFormError}</p>}
+                    <div><button type="button" onClick={closeTripForm} disabled={tripFormBusy}>취소</button><button type="submit" disabled={tripFormBusy}>{tripFormBusy ? "저장 중..." : tripForm.mode === "create" ? "만들기" : "저장"}</button></div>
+                  </form>
+                )}
                 <div className="account-trip-list">
                   {trips.map((item) => (
                     <div className={`account-trip-row ${item.id === trip.id ? "is-current" : ""}`} key={item.id}>
                       <button className="account-trip-select" onClick={() => chooseTrip(item.id)}><span className="account-trip-check">{item.id === trip.id ? "✓" : ""}</span><span><strong>{item.name}</strong><small>{item.role === "owner" ? "내가 만든 여행" : "초대받은 여행"}</small></span></button>
-                      {item.role === "owner" && <button className="account-trip-delete" onClick={() => { setAccountOpen(false); setTripToDelete(item); }} aria-label={`${item.name} 삭제`} title="여행 삭제">삭제</button>}
+                      {item.role === "owner" && <div className="account-trip-actions"><button className="account-trip-edit" onClick={() => openTripRename(item)} aria-label={`${item.name} 제목 수정`} title="여행 제목 수정">✎</button><button className="account-trip-delete" onClick={() => { setAccountOpen(false); setTripForm(null); setTripToDelete(item); }} aria-label={`${item.name} 삭제`} title="여행 삭제">삭제</button></div>}
                     </div>
                   ))}
                 </div>
@@ -1122,7 +1175,7 @@ export default function App() {
         </div>
       </header>
 
-      {accountOpen && <button className="account-menu-backdrop" onClick={() => setAccountOpen(false)} aria-label="내 여행 일정 닫기" />}
+      {accountOpen && <button className="account-menu-backdrop" onClick={() => { setAccountOpen(false); setTripForm(null); setTripFormError(""); }} aria-label="내 여행 일정 닫기" />}
 
       {dataError && <div className="data-error" role="alert">{dataError}<button onClick={() => setDataError("")}>×</button></div>}
 
