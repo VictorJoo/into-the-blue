@@ -1088,12 +1088,13 @@ export default function App() {
       * { box-sizing: border-box; }
       body { margin: 0; background: #f5f1e8; color: #24352f; font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .sheet { width: 100%; max-width: 860px; margin: 0 auto; padding: 28px; background: #fffdf8; }
-      .cover { position: relative; overflow: hidden; min-height: 210px; display: flex; flex-direction: column; justify-content: flex-end; padding: 36px; border-radius: 24px; background: #173f36; color: white; }
+      .cover { position: relative; overflow: hidden; min-height: 210px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 30px; padding: 36px; border-radius: 24px; background: #173f36; color: white; }
       .cover:after { content: ""; position: absolute; top: -70px; right: -55px; width: 230px; height: 230px; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; box-shadow: 0 0 0 35px rgba(255,255,255,.035), 0 0 0 70px rgba(255,255,255,.025); }
-      .eyebrow { position: relative; z-index: 1; margin-bottom: 12px; color: #f4a08f; font-size: 10px; font-weight: 800; letter-spacing: .22em; }
-      .cover h1 { position: relative; z-index: 1; margin: 0; font-family: Georgia, "Noto Serif KR", serif; font-size: 40px; line-height: 1; letter-spacing: -.03em; }
-      .cover > p { position: relative; z-index: 1; margin: 13px 0 0; color: rgba(255,255,255,.76); font-size: 13px; }
-      .stats { position: absolute; z-index: 1; right: 34px; bottom: 34px; display: flex; gap: 18px; }
+      .cover-copy { position: relative; z-index: 1; min-width: 0; }
+      .eyebrow { display: block; margin-bottom: 12px; color: #f4a08f; font-size: 10px; font-weight: 800; letter-spacing: .22em; }
+      .cover h1 { max-width: 100%; margin: 0; overflow-wrap: anywhere; word-break: keep-all; font-family: Georgia, "Noto Serif KR", serif; font-size: 40px; line-height: 1.08; letter-spacing: -.03em; }
+      .cover-copy > p { margin: 13px 0 0; color: rgba(255,255,255,.76); font-size: 13px; line-height: 1.4; }
+      .stats { position: relative; z-index: 1; display: flex; align-self: end; gap: 18px; }
       .stats div { min-width: 64px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,.25); }
       .stats strong { display: block; font-size: 20px; }
       .stats span { color: rgba(255,255,255,.65); font-size: 9px; }
@@ -1101,8 +1102,9 @@ export default function App() {
       .day + .day { padding-top: 9px; border-top: 1px solid #e5ded2; }
       .day-heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; padding: 0 2px 12px; border-bottom: 2px solid #173f36; }
       .day-heading span { color: #ef765f; font-size: 9px; font-weight: 800; letter-spacing: .13em; }
-      .day-heading h2 { margin: 5px 0 0; font-family: Georgia, "Noto Serif KR", serif; color: #173f36; font-size: 23px; }
-      .day-heading time { color: #6f7b75; font-size: 11px; font-weight: 700; }
+      .day-heading > div { min-width: 0; }
+      .day-heading h2 { margin: 5px 0 0; overflow-wrap: anywhere; word-break: keep-all; font-family: Georgia, "Noto Serif KR", serif; color: #173f36; font-size: 23px; line-height: 1.2; }
+      .day-heading time { flex: none; color: #6f7b75; font-size: 11px; font-weight: 700; white-space: nowrap; }
       .place { display: grid; grid-template-columns: 66px 1fr; gap: 15px; margin-bottom: 14px; break-inside: avoid; }
       .time-column { display: flex; flex-direction: column; align-items: center; gap: 7px; padding-top: 5px; color: #64716b; }
       .time-column strong { font-size: 11px; }
@@ -1124,8 +1126,25 @@ export default function App() {
       .candidate p { color: #626f68; }
       .candidate a { flex: none; color: #987133; font-size: 8px; text-decoration: none; }
       footer { display: flex; justify-content: space-between; margin-top: 34px; padding: 14px 2px 0; border-top: 1px solid #ded7cb; color: #8b938e; font-size: 8px; }
+      @media screen and (max-width: 640px) {
+        .sheet { padding: 12px; }
+        .cover { min-height: auto; grid-template-columns: 1fr; gap: 24px; padding: 26px 22px 24px; border-radius: 18px; }
+        .cover:after { top: -92px; right: -90px; }
+        .eyebrow { margin-bottom: 9px; font-size: 8px; }
+        .cover h1 { font-size: clamp(28px, 9.5vw, 38px); line-height: 1.12; }
+        .cover-copy > p { margin-top: 9px; font-size: 11px; }
+        .stats { width: 100%; justify-content: space-between; gap: 0; }
+        .stats div { flex: 1; min-width: 0; padding-left: 9px; }
+        .stats strong { font-size: 18px; }
+        .stats span { font-size: 8px; }
+        .day { margin-top: 24px; }
+        .day-heading { align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+        .day-heading h2 { font-size: 19px; line-height: 1.25; }
+        .day-heading time { padding-top: 2px; font-size: 9px; }
+        footer { flex-direction: column; gap: 4px; }
+      }
       @media print { body { background: white; } .sheet { max-width: none; padding: 0; } .day { break-inside: auto; } }
-    </style></head><body><main class="sheet"><section class="cover"><span class="eyebrow">TRAVEL ITINERARY</span><h1>${escapeHtml(trip.name)}</h1><p>${escapeHtml(tripDateRange)}</p><div class="stats"><div><strong>${entries.length}</strong><span>여행 일수</span></div><div><strong>${confirmedCount}</strong><span>확정 일정</span></div><div><strong>${candidateCount}</strong><span>후보 장소</span></div></div></section>${daySections}<footer><span>${escapeHtml(trip.name)}</span><span>Into the Blue · ${escapeHtml(new Date().toLocaleDateString("ko-KR"))}</span></footer></main><script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},500)});</script></body></html>`);
+    </style></head><body><main class="sheet"><section class="cover"><div class="cover-copy"><span class="eyebrow">TRAVEL ITINERARY</span><h1>${escapeHtml(trip.name)}</h1><p>${escapeHtml(tripDateRange)}</p></div><div class="stats"><div><strong>${entries.length}</strong><span>여행 일수</span></div><div><strong>${confirmedCount}</strong><span>확정 일정</span></div><div><strong>${candidateCount}</strong><span>후보 장소</span></div></div></section>${daySections}<footer><span>${escapeHtml(trip.name)}</span><span>Into the Blue · ${escapeHtml(new Date().toLocaleDateString("ko-KR"))}</span></footer></main><script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},500)});</script></body></html>`);
     printWindow.document.close();
   };
 
