@@ -27,6 +27,7 @@ interface GoogleInfoWindowInstance {
 
 interface GooglePolylineInstance {
   setMap: (map: GoogleMapInstance | null) => void;
+  setOptions: (options: Record<string, unknown>) => void;
 }
 
 interface GoogleMapsApi {
@@ -35,7 +36,6 @@ interface GoogleMapsApi {
   InfoWindow: new (options: { content: Node | string }) => GoogleInfoWindowInstance;
   LatLngBounds: new () => GoogleBoundsInstance;
   Polyline: new (options: Record<string, unknown>) => GooglePolylineInstance;
-  SymbolPath: { CIRCLE: unknown };
   importLibrary: (library: string) => Promise<unknown>;
 }
 
@@ -87,6 +87,13 @@ function loadGoogleMaps(apiKey: string) {
 function coordinates(coords: [number, number]): LatLngLiteral {
   return { lat: coords[0], lng: coords[1] };
 }
+
+const candidatePinIcon = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" viewBox="0 0 30 36">
+    <path d="M15 1.5C7.54 1.5 1.5 7.54 1.5 15c0 10.25 13.5 19.5 13.5 19.5S28.5 25.25 28.5 15C28.5 7.54 22.46 1.5 15 1.5Z" fill="#78909c" stroke="#fff" stroke-width="3"/>
+    <circle cx="15" cy="14" r="4" fill="none" stroke="#fff" stroke-width="2.5"/>
+  </svg>
+`)}`;
 
 function popupContent(
   item: Candidate,
@@ -155,6 +162,7 @@ export default function GoogleMapView({
   const polylinesRef = useRef<GooglePolylineInstance[]>([]);
   const [readyToken, setReadyToken] = useState(0);
   const [mapError, setMapError] = useState("");
+  const [routeError, setRouteError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -202,14 +210,7 @@ export default function GoogleMapView({
               map,
               position: candidatePosition,
               title: candidate.title,
-              icon: {
-                path: maps.SymbolPath.CIRCLE,
-                scale: 7,
-                fillColor: "#78909c",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 2,
-              },
+              icon: candidatePinIcon,
             });
             const candidateInfo = new maps.InfoWindow({ content: popupContent(candidate, "후보", getReviewUrl(candidate)) });
             listeners.push(candidateMarker.addListener("click", () => {
@@ -229,22 +230,24 @@ export default function GoogleMapView({
               destination: coordinates(places[places.length - 1].coords),
               intermediates: places.slice(1, -1).map((place) => ({ location: coordinates(place.coords) })),
               travelMode: "DRIVING",
-              fields: ["path", "viewport", "distanceMeters", "durationMillis"],
+              routingPreference: "TRAFFIC_UNAWARE",
+              polylineQuality: "OVERVIEW",
+              fields: ["path"],
             });
             if (!cancelled && routes?.[0]) {
               polylinesRef.current = routes[0].createPolylines();
-              polylinesRef.current.forEach((polyline) => polyline.setMap(map));
+              polylinesRef.current.forEach((polyline) => {
+                polyline.setOptions({ strokeColor: "#ef765f", strokeOpacity: 0.94, strokeWeight: 5 });
+                polyline.setMap(map);
+              });
             }
-          } catch {
-            const fallback = new maps.Polyline({
-              map,
-              path: places.map((place) => coordinates(place.coords)),
-              strokeColor: "#ef765f",
-              strokeOpacity: 0.9,
-              strokeWeight: 4,
-            });
-            polylinesRef.current = [fallback];
+            setRouteError("");
+          } catch (error) {
+            console.warn("Google 자동차 경로 계산 실패", error);
+            setRouteError("자동차 경로를 불러오지 못했습니다. Google Cloud에서 Routes API 사용 설정을 확인해주세요.");
           }
+        } else {
+          setRouteError("");
         }
         if (places.length > 1) map.fitBounds(bounds, 64);
         setMapError("");
@@ -281,5 +284,5 @@ export default function GoogleMapView({
     entry.info.open({ map, anchor: entry.marker });
   }, [focusPoint, places, readyToken, selectedId]);
 
-  return <div className="google-map-shell"><div ref={containerRef} className="map-canvas" aria-label="Google Maps 여행 일정 경로 지도" />{mapError && <div className="map-api-error" role="alert">{mapError}</div>}</div>;
+  return <div className="google-map-shell"><div ref={containerRef} className="map-canvas" aria-label="Google Maps 여행 일정 자동차 경로 지도" />{mapError && <div className="map-api-error" role="alert">{mapError}</div>}{routeError && <div className="map-route-error" role="status">{routeError}</div>}</div>;
 }

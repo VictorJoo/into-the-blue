@@ -90,6 +90,7 @@ function OpenStreetMapView({
     L.control.zoom({ position: "bottomright" }).addTo(map);
 
     const route = places.map((place) => place.coords);
+    const mapPoints = places.flatMap((place) => [place.coords, ...place.alternatives.map((candidate) => candidate.coords)]);
     if (route.length > 1) {
       L.polyline(route, { color: "#ef765f", weight: 5, opacity: 0.95, lineCap: "round" }).addTo(map);
       L.polyline(route, { color: "#fffaf0", weight: 2, opacity: 0.55, dashArray: "2 11" }).addTo(map);
@@ -115,9 +116,10 @@ function OpenStreetMapView({
       place.alternatives.forEach((candidate) => {
         const candidateIcon = L.divIcon({
           className: "candidate-marker-wrapper",
-          html: '<span class="candidate-marker"></span>',
-          iconSize: [16, 16],
-          iconAnchor: [8, 8],
+          html: `<button class="candidate-marker" aria-label="후보 장소 ${safe(candidate.title)}"><span></span></button>`,
+          iconSize: [30, 36],
+          iconAnchor: [15, 33],
+          popupAnchor: [0, -31],
         });
         const candidateMarker = L.marker(candidate.coords, { icon: candidateIcon })
           .addTo(map)
@@ -125,11 +127,12 @@ function OpenStreetMapView({
             className: "place-popup candidate-popup",
             closeButton: false,
           });
+        candidateMarker.on("click", () => map.flyTo(candidate.coords, 15, { duration: 0.65 }));
         markersRef.current[candidate.id] = candidateMarker;
       });
     });
 
-    if (route.length > 1) map.fitBounds(L.latLngBounds(route), { padding: [60, 60] });
+    if (mapPoints.length > 1) map.fitBounds(L.latLngBounds(mapPoints), { padding: [60, 60] });
     mapRef.current = map;
     const closePopupOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") map.closePopup();

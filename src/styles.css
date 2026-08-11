@@ -306,6 +306,7 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
 .google-map-shell { position: relative; width: 100%; height: 100%; }
 .map-canvas { width: 100%; height: 100%; background: #dce3dc; }
 .map-api-error { position: absolute; z-index: 4; top: 50%; left: 50%; width: min(320px, calc(100% - 32px)); padding: 16px; border-radius: 12px; transform: translate(-50%, -50%); background: white; color: #a34738; box-shadow: 0 15px 45px rgba(25,54,45,.2); font-size: 11px; text-align: center; }
+.map-route-error { position: absolute; z-index: 4; left: 50%; bottom: 46px; width: min(430px, calc(100% - 32px)); padding: 10px 14px; border: 1px solid #f0c5b9; border-radius: 10px; transform: translateX(-50%); background: rgba(255,249,245,.96); color: #9b493a; box-shadow: 0 9px 28px rgba(67,43,34,.15); font-size: 10px; font-weight: 700; text-align: center; }
 .map-provider-note { position: absolute; z-index: 500; left: 25px; bottom: 25px; display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border-radius: 9px; background: rgba(255,252,246,.92); box-shadow: 0 8px 24px rgba(30,54,47,.13); backdrop-filter: blur(8px); }
 .map-provider-note strong { color: var(--forest); font-size: 9px; }
 .map-provider-note span { color: #8a938e; font-size: 7px; }
@@ -318,7 +319,9 @@ body.is-resizing-sidebar, body.is-resizing-sidebar * { cursor: col-resize !impor
 .trip-marker span { display: grid; place-items: center; width: 100%; height: 100%; transform: rotate(45deg); font-size: 12px; font-weight: 700; }
 .trip-marker:hover, .trip-marker.is-selected { transform: rotate(-45deg) scale(1.18); background: var(--coral); }
 .candidate-marker-wrapper { background: none !important; border: 0 !important; }
-.candidate-marker { display: block; width: 14px; height: 14px; border: 3px solid rgba(255,255,255,.94); border-radius: 50%; background: #8d9993; box-shadow: 0 3px 10px rgba(31,54,47,.28); }
+.candidate-marker { position: relative; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 3px solid rgba(255,255,255,.96); border-radius: 50% 50% 50% 7px; transform: rotate(-45deg); background: #78909c; box-shadow: 0 4px 13px rgba(31,54,47,.3); cursor: pointer; transition: transform .18s, background .18s; }
+.candidate-marker span { width: 7px; height: 7px; border: 2px solid white; border-radius: 50%; transform: rotate(45deg); }
+.candidate-marker:hover { transform: rotate(-45deg) scale(1.16); background: #ef765f; }
 .candidate-popup .leaflet-popup-content-wrapper { opacity: .94; }
 .place-popup .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 10px 35px rgba(25,54,45,.18); }
 .place-popup .leaflet-popup-content { margin: 9px 10px; color: var(--forest); }
