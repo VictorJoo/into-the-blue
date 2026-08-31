@@ -1,4 +1,5 @@
 import type { Place } from "../types";
+import { inferPlaceCategory } from "../categories";
 
 const PLACEHOLDER_COORDS: [number, number] = [10.2899, 103.9840];
 
@@ -67,6 +68,7 @@ export function createPhuQuocItinerary(userId: string, userName: string): Record
     items.map((item, index): Place => ({
       id: `phu-quoc-${date}-${item.time.replace(":", "")}-${index + 1}`,
       ...item,
+      category: inferPlaceCategory(item),
       duration: "",
       coords: [...PLACEHOLDER_COORDS],
       alternatives: [],

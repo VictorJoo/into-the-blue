@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "into-the-blue-value",
+  "main": "worker/value.ts",
+  "compatibility_date": "2026-08-21",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "http://localhost:5173,https://into-the-blue-value.workers.dev"
+  }
+}
