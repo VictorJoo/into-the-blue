@@ -1,9 +1,9 @@
-/* eslint-disable react-refresh/only-export-components */
+"use client";
+
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { signInWithKakao, signOut } from "./lib/auth";
-import { supabase } from "./lib/supabase";
-import { createPhuQuocItinerary, PHU_QUOC_DATES, PHU_QUOC_LIST_TITLES } from "./data/phuQuocItinerary";
+import { hasSupabaseConfig, supabase } from "./lib/supabase";
 
 export type MemberProfile = {
   id: string;
@@ -44,10 +44,14 @@ function metadataAvatar(user: User) {
   return metadata.avatar_url ?? metadata.picture ?? undefined;
 }
 
-function LoginPage({ inviteToken }: { inviteToken?: string }) {
+export function LoginPage({ inviteToken }: { inviteToken?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const login = async () => {
+    if (!hasSupabaseConfig) {
+      setError("Supabase 연결 정보가 아직 설정되지 않았습니다.");
+      return;
+    }
     setBusy(true);
     setError("");
     const { error: authError } = await signInWithKakao(inviteToken);
@@ -57,16 +61,28 @@ function LoginPage({ inviteToken }: { inviteToken?: string }) {
     }
   };
   return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div className="auth-brand"><strong>SURABUL TOUR</strong><span>MAP THE MOMENTS · KEEP THE JOURNEY</span></div>
+    <main className="auth-page login-page">
+      <section className="auth-intro" aria-label="Into the Blue 소개">
+        <a className="auth-brand" href="/">
+          <span className="auth-brand-mark" aria-hidden="true">⌖</span>
+          <strong>Into the Blue</strong>
+        </a>
         <p className="auth-eyebrow">SHARED TRAVEL PLANNER</p>
-        <h1>함께 만드는 여행 일정</h1>
-        <p className="auth-description">초대받은 여행자들과 장소, 후보, 메모와 의견을 한곳에서 정리하세요.</p>
+        <h1>여행의 모든 순간을<br />지도 위에서 함께.</h1>
+        <p>장소를 모으고, 일정을 정하고, 실제 이동 경로까지 한 화면에서 계획하세요.</p>
+        <div className="auth-feature-list" aria-label="주요 기능">
+          <span>날짜별 일정</span><span>Mapbox 이동 경로</span><span>동행자 실시간 협업</span>
+        </div>
+      </section>
+      <section className="auth-card">
+        <p className="auth-eyebrow">WELCOME</p>
+        <h2>여행 계획으로 돌아가기</h2>
+        <p className="auth-description">카카오 계정으로 안전하게 로그인하세요. 비밀번호를 새로 만들 필요가 없습니다.</p>
         {inviteToken && <div className="invite-notice"><span>✓</span><div><strong>초대 링크가 확인됐어요</strong><p>카카오 로그인 후 여행에 바로 참여합니다.</p></div></div>}
-        <button className="kakao-login" onClick={login} disabled={busy}><span>●</span>{busy ? "카카오로 이동 중..." : "카카오로 계속하기"}</button>
+        <button className="kakao-login" onClick={login} disabled={busy || !hasSupabaseConfig}><span>●</span>{busy ? "카카오로 이동 중..." : "카카오로 계속하기"}</button>
+        {!hasSupabaseConfig && <p className="auth-error">Cloudflare에 Supabase 공개 환경변수를 추가하면 로그인이 활성화됩니다.</p>}
         {error && <p className="auth-error">{error}</p>}
-        <small>초대받은 사용자만 여행 데이터에 접근할 수 있습니다.</small>
+        <small>로그인하면 서비스 이용약관과 개인정보 처리방침에 동의하게 됩니다.</small>
       </section>
     </main>
   );
@@ -129,7 +145,6 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
   const loadWorkspace = useCallback(async (currentSession: Session) => {
     const user = currentSession.user;
     let acceptedTripId: string | undefined;
-    const shouldProvisionPhuQuoc = new URL(window.location.href).searchParams.get("provision") === "phu-quoc-2026";
     await supabase.from("profiles").upsert({ id: user.id, nickname: metadataName(user), avatar_url: metadataAvatar(user) }, { onConflict: "id" });
     if (inviteToken) {
       const { data, error } = await supabase.rpc("accept_invite", { p_token: inviteToken });
@@ -141,7 +156,7 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
       }
     }
     const { data: memberships } = await supabase.from("trip_members").select("trip_id,role,joined_at").eq("user_id", user.id).order("joined_at", { ascending: true });
-    if (!memberships?.length && !shouldProvisionPhuQuoc) {
+    if (!memberships?.length) {
       setTrips([]);
       setTrip(null);
       setMembers([]);
@@ -154,42 +169,10 @@ export function WorkspaceGate({ children }: { children: ReactNode }) {
       ? await supabase.from("trips").select("id,name,owner_id").in("id", tripIds)
       : { data: [] };
     const rowsById = new Map((tripRows ?? []).map((row) => [row.id, row]));
-    let nextTrips = membershipRows.flatMap((membership) => {
+    const nextTrips = membershipRows.flatMap((membership) => {
       const row = rowsById.get(membership.trip_id);
       return row ? [{ ...row, role: membership.role as "owner" | "member" }] : [];
     });
-    if (shouldProvisionPhuQuoc) {
-      const existingTrip = nextTrips.find((item) => item.name === "푸꾸옥 그룹 여행" && item.role === "owner");
-      if (existingTrip) {
-        acceptedTripId = existingTrip.id;
-      } else {
-        const { data: createdTripId, error: createError } = await supabase.rpc("create_trip", { p_name: "푸꾸옥 그룹 여행" });
-        if (!createError && createdTripId) {
-          const itinerary = createPhuQuocItinerary(user.id, metadataName(user));
-          const { error: documentError } = await supabase.from("trip_documents").upsert(PHU_QUOC_DATES.map((date) => ({
-            trip_id: createdTripId,
-            trip_date: date,
-            list_title: PHU_QUOC_LIST_TITLES[date],
-            schedule: itinerary[date],
-            updated_by: user.id,
-            updated_at: new Date().toISOString(),
-          })), { onConflict: "trip_id,trip_date" });
-          if (documentError) {
-            await supabase.rpc("delete_trip", { p_trip_id: createdTripId });
-            setInviteError("푸꾸옥 일정을 만들지 못했습니다. 잠시 후 다시 시도해주세요.");
-          } else {
-            const createdTrip: WorkspaceTrip = { id: createdTripId, name: "푸꾸옥 그룹 여행", owner_id: user.id, role: "owner" };
-            nextTrips = [...nextTrips, createdTrip];
-            acceptedTripId = createdTripId;
-          }
-        } else {
-          setInviteError("푸꾸옥 일정을 만들지 못했습니다. 잠시 후 다시 시도해주세요.");
-        }
-      }
-      const url = new URL(window.location.href);
-      url.searchParams.delete("provision");
-      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-    }
     setTrips(nextTrips);
     const savedTripId = localStorage.getItem(`into-the-blue-active-trip:${user.id}`);
     const nextTrip = nextTrips.find((item) => item.id === acceptedTripId)

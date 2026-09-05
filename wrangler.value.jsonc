@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "into-the-blue-value",
+  "main": "worker/value.ts",
+  "compatibility_date": "2026-09-05",
+  "vars": {
+    "ALLOWED_ORIGINS": "http://localhost:3000,http://127.0.0.1:3000,https://into-the-blue.proudvictor89.workers.dev"
+  }
+}

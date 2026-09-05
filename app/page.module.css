@@ -1,0 +1,285 @@
+.page {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background: #f5f7fa;
+  color: #1d1d1f;
+}
+
+.header {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  width: min(1440px, 100%);
+  height: 72px;
+  margin: 0 auto;
+  padding: 0 clamp(24px, 4vw, 64px);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: #1d1d1f;
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -.015em;
+  text-decoration: none;
+}
+
+.brandMark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  flex: none;
+  border-radius: 10px;
+  background: #007aff;
+  color: #fff;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.nav a {
+  color: #6e6e73;
+  font-size: 13px;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.nav a:hover { color: #1d1d1f; }
+
+.nav .navPrimary {
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: #007aff;
+  color: #fff;
+  font-weight: 650;
+}
+
+.hero {
+  display: grid;
+  width: min(1440px, 100%);
+  min-height: calc(100dvh - 72px);
+  margin: 0 auto;
+  padding: clamp(32px, 5vw, 72px) clamp(24px, 4vw, 64px) clamp(64px, 7vw, 100px);
+  grid-template-columns: minmax(340px, .78fr) minmax(540px, 1.22fr);
+  align-items: center;
+  gap: clamp(40px, 6vw, 92px);
+}
+
+.heroCopy { max-width: 540px; }
+
+.eyebrow,
+.sectionIntro > p {
+  margin: 0 0 16px;
+  color: #007aff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .14em;
+}
+
+.hero h1 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: clamp(42px, 4.5vw, 68px);
+  font-weight: 650;
+  line-height: 1.08;
+  letter-spacing: -.05em;
+  text-wrap: balance;
+}
+
+.lead {
+  max-width: 510px;
+  margin: 24px 0 0;
+  color: #6e6e73;
+  font-size: 16px;
+  font-weight: 420;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.heroActions {
+  display: flex;
+  margin-top: 34px;
+  align-items: center;
+  gap: 12px;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  min-height: 48px;
+  padding: 0 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
+  text-decoration: none;
+}
+
+.primaryAction { background: #007aff; color: #fff; }
+.primaryAction:hover { background: #006ee6; }
+.secondaryAction { border: 1px solid rgba(60,60,67,.12); background: #fff; color: #1d1d1f; }
+.secondaryAction:hover { background: #f0f2f5; }
+
+.heroNote {
+  display: flex;
+  margin-top: 28px;
+  align-items: center;
+  gap: 9px;
+  color: #6e6e73;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.heroNote svg { flex: none; color: #6e6e73; }
+.heroNote strong { color: #1d1d1f; font-weight: 650; }
+
+.mapStage {
+  position: relative;
+  min-width: 0;
+  height: min(680px, 72dvh);
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid rgba(60,60,67,.12);
+  border-radius: 28px;
+  background: #e9eef2;
+  box-shadow: 0 24px 70px rgba(48,55,66,.14);
+}
+
+.mapCard {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  border: 1px solid rgba(60,60,67,.12);
+  border-radius: 16px;
+  background: rgba(255,255,255,.88);
+  box-shadow: 0 12px 32px rgba(37,44,55,.14);
+  backdrop-filter: blur(12px);
+}
+
+.scheduleCard {
+  left: 20px;
+  bottom: 20px;
+  width: min(310px, calc(100% - 40px));
+  padding: 14px;
+  align-items: center;
+  gap: 12px;
+}
+
+.cardIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  flex: none;
+  border-radius: 11px;
+  background: #007aff;
+  color: #fff;
+}
+
+.scheduleCard > div,
+.routeCard { flex-direction: column; }
+.mapCard small { color: #6e6e73; font-size: 10px; font-weight: 550; line-height: 14px; }
+.mapCard strong { overflow: hidden; color: #1d1d1f; font-size: 14px; font-weight: 650; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.mapCard span:not(.cardIcon) { color: #6e6e73; font-size: 11px; line-height: 16px; }
+
+.routeCard {
+  top: 20px;
+  right: 20px;
+  min-width: 148px;
+  padding: 14px 16px;
+}
+
+.routeCard strong {
+  margin-top: 2px;
+  font-size: 22px;
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+
+.features {
+  display: grid;
+  width: min(1312px, calc(100% - 48px));
+  margin: 0 auto 96px;
+  padding: clamp(42px, 6vw, 72px);
+  grid-template-columns: minmax(240px, .62fr) 1.38fr;
+  gap: clamp(40px, 6vw, 84px);
+  border: 1px solid rgba(60,60,67,.12);
+  border-radius: 28px;
+  background: #fff;
+}
+
+.sectionIntro h2 {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 42px);
+  font-weight: 630;
+  line-height: 1.22;
+  letter-spacing: -.04em;
+}
+
+.featureGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.featureCard { min-width: 0; padding: 22px; border: 1px solid rgba(60,60,67,.1); border-radius: 18px; background: #f7f8fa; }
+.featureCard > span { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; background: #fff; color: #007aff; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.featureCard h3 { margin: 22px 0 8px; font-size: 16px; font-weight: 650; line-height: 24px; }
+.featureCard p { margin: 0; color: #6e6e73; font-size: 13px; line-height: 1.65; word-break: keep-all; }
+
+.footer {
+  display: flex;
+  width: min(1312px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 40px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(60,60,67,.12);
+  color: #6e6e73;
+  font-size: 12px;
+}
+
+.footer > span { color: #1d1d1f; font-weight: 650; }
+.footer p { margin: 0; }
+
+@media (max-width: 1040px) {
+  .hero { grid-template-columns: 1fr; padding-top: 48px; }
+  .heroCopy { max-width: 650px; }
+  .mapStage { height: 600px; }
+  .features { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .header { height: 64px; padding: 0 18px; }
+  .nav { gap: 8px; }
+  .nav > a:first-child,
+  .nav > a:nth-child(2) { display: none; }
+  .nav .navPrimary { padding: 8px 11px; font-size: 12px; }
+  .hero { min-height: auto; padding: 42px 18px 72px; gap: 38px; }
+  .hero h1 { font-size: clamp(38px, 12vw, 52px); }
+  .lead { margin-top: 20px; font-size: 15px; }
+  .heroActions { align-items: stretch; flex-direction: column; }
+  .primaryAction,
+  .secondaryAction { width: 100%; }
+  .mapStage { height: 62dvh; min-height: 460px; border-radius: 22px; }
+  .routeCard { top: 14px; right: 14px; }
+  .scheduleCard { left: 14px; right: 14px; bottom: 14px; width: auto; }
+  .features { width: calc(100% - 36px); margin-bottom: 64px; padding: 34px 20px; border-radius: 22px; }
+  .featureGrid { grid-template-columns: 1fr; }
+  .featureCard { padding: 20px; }
+  .footer { width: calc(100% - 36px); align-items: flex-start; flex-direction: column; gap: 8px; }
+}
+
+@media (max-width: 390px) {
+  .brand { font-size: 14px; }
+  .hero h1 { font-size: 36px; }
+  .routeCard { min-width: 132px; }
+}

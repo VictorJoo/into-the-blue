@@ -1,0 +1,13 @@
+services:
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v26.8.0-debian
+    command: ["osrm-routed", "--algorithm", "mld", "--max-table-size", "10000", "/data/region.osrm"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - ./data:/data:ro
+    deploy:
+      resources:
+        limits:
+          memory: 16G
