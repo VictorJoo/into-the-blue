@@ -153,6 +153,7 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
     name: valueContext?.name,
     avatarUrl: valueContext?.avatarUrl,
   });
+  const clearSharedError = shared.clearError;
 
   const routeSignature = useMemo(
     () => places.map((place) => `${place.coords[0].toFixed(5)},${place.coords[1].toFixed(5)}`).join(";"),
@@ -289,13 +290,16 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
   useEffect(() => {
     const closePopupOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      setMapError("");
+      setRouteError("");
+      clearSharedError();
       containerRef.current
         ?.querySelectorAll<HTMLButtonElement>(".mapboxgl-popup-close-button")
         .forEach((button) => button.click());
     };
     window.addEventListener("keydown", closePopupOnEscape);
     return () => window.removeEventListener("keydown", closePopupOnEscape);
-  }, []);
+  }, [clearSharedError]);
 
   useEffect(() => {
     const mapbox = mapboxRef.current;
@@ -323,6 +327,8 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
     });
   }, [ready, shared.locations]);
 
+  const supplementalError = routeError || shared.error;
+
   return (
     <div className="value-map-shell">
       <div ref={containerRef} className="map-canvas" aria-label="Mapbox 기반 자동차 일정 경로 지도" />
@@ -332,7 +338,23 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
         </button>
         {routeMeta && <span>{(routeMeta.distance / 1000).toFixed(1)}km · 약 {Math.max(1, Math.round(routeMeta.duration / 60))}분</span>}
       </div>
-      {(mapError || routeError || shared.error) && <div className="map-api-error" role="status">{mapError || routeError || shared.error}</div>}
+      {mapError && (
+        <div className="map-api-error" role="alert">
+          <span>{mapError}</span>
+          <button type="button" className="map-feedback-close" onClick={() => setMapError("")} aria-label="지도 오류 안내 닫기">×</button>
+        </div>
+      )}
+      {supplementalError && (
+        <div className="map-route-error" role="status" aria-live="polite">
+          <span>{supplementalError}</span>
+          <button
+            type="button"
+            className="map-feedback-close"
+            onClick={() => { setRouteError(""); clearSharedError(); }}
+            aria-label="경로 및 위치 공유 안내 닫기"
+          >×</button>
+        </div>
+      )}
     </div>
   );
 }

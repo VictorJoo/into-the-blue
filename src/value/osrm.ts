@@ -21,6 +21,24 @@ type MapboxDirectionsResponse = {
   }>;
 };
 
+function mapboxDirectionsError(status: number, payload: MapboxDirectionsResponse | null) {
+  const message = payload?.message?.trim().toLowerCase() ?? "";
+
+  if (status === 401 || message.includes("invalid token") || message.includes("not authorized")) {
+    return new Error("Mapbox 토큰이 올바르지 않습니다. 서비스 설정을 확인해주세요.");
+  }
+  if (status === 403 || message === "forbidden") {
+    return new Error("현재 서비스 주소가 Mapbox 토큰의 허용 URL에 등록되지 않았습니다.");
+  }
+  if (status === 429) {
+    return new Error("경로 요청이 잠시 많습니다. 잠시 후 다시 시도해주세요.");
+  }
+  if (payload?.code === "NoRoute") {
+    return new Error("선택한 장소 사이에서 자동차 경로를 찾지 못했습니다.");
+  }
+  return new Error("자동차 경로를 계산하지 못했습니다. 잠시 후 다시 시도해주세요.");
+}
+
 async function fetchMapboxDrivingRoute(
   points: [number, number][],
   signal?: AbortSignal,
@@ -39,7 +57,13 @@ async function fetchMapboxDrivingRoute(
     steps: "false",
   });
   const endpoint = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?${query}`;
-  const response = await fetch(endpoint, { signal });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, { signal });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
+    throw new Error("Mapbox 경로 서버에 연결하지 못했습니다. 네트워크 상태를 확인해주세요.");
+  }
   const payload = await response.json().catch(() => null) as MapboxDirectionsResponse | null;
   const route = payload?.routes?.[0];
 
@@ -51,7 +75,7 @@ async function fetchMapboxDrivingRoute(
     || typeof route.distance !== "number"
     || typeof route.duration !== "number"
   ) {
-    throw new Error(payload?.message || `Mapbox 경로 계산 오류 (${response.status})`);
+    throw mapboxDirectionsError(response.status, payload);
   }
 
   return {

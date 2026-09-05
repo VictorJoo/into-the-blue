@@ -22,6 +22,19 @@ function movedEnough(previous: SharedLocation | null, next: SharedLocation) {
   return distance >= 15 || Date.parse(next.updatedAt) - Date.parse(previous.updatedAt) >= 8_000;
 }
 
+function geolocationErrorMessage(cause: GeolocationPositionError) {
+  if (cause.code === cause.PERMISSION_DENIED) {
+    return "위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.";
+  }
+  if (cause.code === cause.POSITION_UNAVAILABLE) {
+    return "현재 위치를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.";
+  }
+  if (cause.code === cause.TIMEOUT) {
+    return "위치 확인 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.";
+  }
+  return "현재 위치를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.";
+}
+
 export function useSharedLocations({
   tripId,
   userId,
@@ -39,6 +52,8 @@ export function useSharedLocations({
   const channelRef = useRef<RealtimeChannel | null>(null);
   const watchRef = useRef<number | null>(null);
   const lastSentRef = useRef<SharedLocation | null>(null);
+
+  const clearError = useCallback(() => setError(""), []);
 
   const stop = useCallback(() => {
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
@@ -107,7 +122,7 @@ export function useSharedLocations({
             lastSentRef.current = next;
             void channel.track(next);
           },
-          (cause) => setError(cause.message || "현재 위치를 가져오지 못했습니다."),
+          (cause) => setError(geolocationErrorMessage(cause)),
           { enableHighAccuracy: false, maximumAge: 10_000, timeout: 15_000 },
         );
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
@@ -119,5 +134,5 @@ export function useSharedLocations({
 
   useEffect(() => stop, [stop]);
 
-  return { sharing, locations, error, start, stop };
+  return { sharing, locations, error, clearError, start, stop };
 }
