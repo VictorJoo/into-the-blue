@@ -50,8 +50,8 @@ pnpm dev
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm build:next
 pnpm build
-pnpm build:vinext
 pnpm deploy:cloudflare:check
 ```
 
@@ -121,8 +121,8 @@ https://into-the-blue.proudvictor89.workers.dev/*
 Cloudflare **Workers & Pages → into-the-blue → Settings → Builds**에서 GitHub 저장소와 `main` 브랜치를 연결합니다.
 
 ```text
-Build command:  pnpm build:vinext
-Deploy command: pnpm exec wrangler deploy --config dist/server/wrangler.json
+Build command:  pnpm build
+Deploy command: pnpm exec wrangler deploy
 Root directory: /
 Node version:   22.13 이상
 ```

@@ -160,7 +160,7 @@ supabase/migrations/202608210001_value_map.sql
 
 ```bash
 pnpm dev
-pnpm build:vinext
+pnpm build
 ```
 
 Worker 서버 전용 값은 브라우저 `.env`에 넣지 않는다.

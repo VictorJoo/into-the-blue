@@ -21,6 +21,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm build:next
       - run: pnpm build
-      - run: pnpm build:vinext
       - run: pnpm deploy:cloudflare:check
