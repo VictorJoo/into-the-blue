@@ -98,7 +98,6 @@ Mapbox **Access tokens**에서 기본 토큰이 아닌 별도 public token을 �
 
 ```text
 http://localhost:3000
-http://127.0.0.1:3000
 https://into-the-blue.proudvictor89.workers.dev
 ```
 
