@@ -27,7 +27,7 @@
 | 서비스 | 필요한 값 | 공개 범위 |
 | --- | --- | --- |
 | Supabase | Project URL, Publishable key | 브라우저 공개 가능. RLS 필수 |
-| Mapbox | Default public token 또는 별도 public token | 브라우저 공개 가능. URL 제한 필수 |
+| Mapbox | 별도로 만든 public token | 브라우저 공개 가능. URL 제한 필수 |
 | Google Cloud | 브라우저 API key | 브라우저 공개 가능. HTTP referrer/API 제한 필수 |
 | Cloudflare | Workers Builds의 GitHub 연결 | 대시보드 또는 Wrangler 인증 |
 | 선택형 경로 Worker | OSRM URL, Supabase URL/key | Worker Secret으로만 저장 |
@@ -94,15 +94,15 @@ https://<project-ref>.supabase.co/auth/v1/callback
 
 ## Mapbox 설정
 
-Mapbox **Access tokens**에서 public token을 만들고 URL 제한에 다음 출처를 등록합니다.
+Mapbox **Access tokens**에서 기본 토큰이 아닌 별도 public token을 만들고 URL 제한에 다음 출처를 등록합니다. Mapbox URL 제한은 와일드카드를 지원하지 않지만, 도메인만 등록하면 그 아래 경로도 허용됩니다.
 
 ```text
-http://localhost:3000/*
-http://127.0.0.1:3000/*
-https://into-the-blue.proudvictor89.workers.dev/*
+http://localhost:3000
+http://127.0.0.1:3000
+https://into-the-blue.proudvictor89.workers.dev
 ```
 
-사용자 도메인을 붙이면 그 출처도 추가합니다. 토큰은 `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`에 입력합니다. 앱은 Mapbox Standard의 `faded` 테마와 Directions API를 사용합니다. 기본 토큰보다는 별도 public token을 만들고 운영·미리보기 도메인을 URL 제한에 등록하세요.
+사용자 도메인을 붙이면 그 출처도 추가합니다. 토큰은 `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`에 입력합니다. 앱은 Mapbox Standard의 `faded` 테마와 Directions API를 사용합니다. 기본 public token에는 URL 제한을 추가할 수 없으므로 사용하지 않습니다.
 
 ## Google Places 설정
 
@@ -137,7 +137,7 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 NEXT_PUBLIC_SITE_URL
 ```
 
-자체 OSRM을 사용할 때만 `NEXT_PUBLIC_ROUTE_API_URL`을 추가합니다. 이 값이 없으면 Mapbox Directions가 기본 경로 엔진으로 사용됩니다.
+자체 OSRM을 사용할 때만 `NEXT_PUBLIC_ROUTE_API_URL`을 추가합니다. 이 값이 없으면 Mapbox Directions가 기본 경로 엔진으로 사용됩니다. 기존에 동작하지 않는 경로 Worker 주소가 등록되어 있다면 이 변수를 삭제하세요. Worker 요청이 일시적으로 실패할 때도 앱은 Mapbox Directions로 자동 전환됩니다.
 
 비프로덕션 브랜치 빌드는 PR 미리보기가 필요할 때만 켭니다. 운영 브랜치는 `main`입니다.
 별도 미리보기 도메인에서 전체 기능을 시험하려면 그 정확한 Origin을 Supabase Redirect URLs, Mapbox/Google 허용 URL, 경로 Worker의 `ALLOWED_ORIGINS`에도 추가합니다.

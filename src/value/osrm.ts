@@ -76,25 +76,38 @@ export async function fetchDrivingRoute(
 ): Promise<DrivingRoute> {
   if (points.length < 2) throw new Error("경로에는 두 곳 이상의 장소가 필요합니다.");
   if (points.length > 25) throw new Error("한 경로에는 최대 25곳까지 포함할 수 있습니다.");
+  if (!points.every(([latitude, longitude]) => (
+    Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= -90
+    && latitude <= 90
+    && longitude >= -180
+    && longitude <= 180
+  ))) throw new Error("경로에 올바르지 않은 장소 좌표가 있습니다.");
 
   const endpoint = process.env.NEXT_PUBLIC_ROUTE_API_URL?.trim();
   if (!endpoint) return fetchMapboxDrivingRoute(points, signal);
 
-  const { data } = await supabase.auth.getSession();
-  const accessToken = data.session?.access_token;
-  if (!accessToken) throw new Error("경로 계산에는 로그인이 필요합니다.");
+  try {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) throw new Error("경로 계산에는 로그인이 필요합니다.");
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ tripId, points }),
-    signal,
-  });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ tripId, points }),
+      signal,
+    });
 
-  const payload = await response.json().catch(() => null) as (DrivingRoute & { error?: string }) | null;
-  if (!response.ok || !payload) throw new Error(payload?.error || `경로 서버 오류 (${response.status})`);
-  return payload;
+    const payload = await response.json().catch(() => null) as (DrivingRoute & { error?: string }) | null;
+    if (!response.ok || !payload) throw new Error(payload?.error || `경로 서버 오류 (${response.status})`);
+    return payload;
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
+    return fetchMapboxDrivingRoute(points, signal);
+  }
 }

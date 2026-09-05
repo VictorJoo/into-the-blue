@@ -18,7 +18,7 @@ flowchart LR
 
 - 지도 드래그와 줌은 Mapbox 내부에서 처리한다. Google 지도 객체는 만들지 않는다.
 - 일정의 2~25개 장소는 한 번의 Mapbox Directions 요청에 경유점으로 전달한다. 순서는 일정 순서를 보존한다.
-- `NEXT_PUBLIC_ROUTE_API_URL`을 지정하면 Mapbox Directions 대신 자체 OSRM Worker를 사용한다.
+- `NEXT_PUBLIC_ROUTE_API_URL`을 지정하면 자체 OSRM Worker를 우선 사용하고, 요청 실패 시 Mapbox Directions로 대체한다.
 - Worker는 Supabase JWT와 `trip_members`를 확인한 후에만 OSRM을 호출한다.
 - 동일 좌표열의 경로는 Cloudflare Cache API에 하루 동안 저장한다.
 - GPS 공유는 사용자가 버튼을 누른 경우에만 시작하고, 15m 이상 이동하거나 8초가 지난 경우에만 Presence를 갱신한다.
@@ -58,11 +58,11 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIza_REPLACE_ME
 # 선택: NEXT_PUBLIC_ROUTE_API_URL=https://into-the-blue-value.YOUR_ACCOUNT_SUBDOMAIN.workers.dev/api/value/route
 ```
 
-Mapbox 공개 토큰에는 운영 도메인 URL 제한을 설정한다. Google 키에는 Maps JavaScript API와 Places UI Kit에 필요한 Places API만 허용하고 HTTP referrer를 제한한다. Google Routes API는 사용하지 않는다.
+Mapbox 기본 public token은 URL 제한을 지원하지 않으므로 별도 `pk.` 토큰을 만들고 운영 도메인 제한을 설정한다. Mapbox 제한 목록에는 와일드카드 없이 `https://example.com` 형태로 넣으면 하위 경로도 허용된다. Google 키에는 Maps JavaScript API와 Places UI Kit에 필요한 Places API만 허용하고 HTTP referrer를 제한한다. Google Routes API는 사용하지 않는다.
 
 ## 4. 기본 Mapbox Directions와 선택형 OSRM 백엔드
 
-프론트는 [`osrm.ts`](../src/value/osrm.ts)를 통해 기본적으로 Mapbox Directions API를 직접 호출한다. 브라우저에는 URL 제한을 건 `pk.` public token만 사용하며 `sk.` secret token을 넣지 않는다. `NEXT_PUBLIC_ROUTE_API_URL`이 설정된 경우에는 인증된 Worker의 `POST /api/value/route`로 전환한다. 이때 OSRM 원본 포트는 인터넷에 공개하지 않는다.
+프론트는 [`osrm.ts`](../src/value/osrm.ts)를 통해 기본적으로 Mapbox Directions API를 직접 호출한다. 브라우저에는 URL 제한을 건 `pk.` public token만 사용하며 `sk.` secret token을 넣지 않는다. `NEXT_PUBLIC_ROUTE_API_URL`이 설정된 경우에는 인증된 Worker의 `POST /api/value/route`를 우선 사용하고, Worker가 응답하지 않거나 오류를 반환하면 Mapbox Directions로 자동 전환한다. 이때 OSRM 원본 포트는 인터넷에 공개하지 않는다.
 
 요청 예시:
 

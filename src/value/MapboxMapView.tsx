@@ -272,6 +272,7 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
       .catch((cause) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
         setRouteError(cause instanceof Error ? cause.message : "자동차 경로를 계산하지 못했습니다.");
+        setRouteMeta(null);
         upsertRoute(map, emptyRoute());
       });
     return () => controller.abort();
@@ -324,7 +325,7 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
 
   return (
     <div className="value-map-shell">
-      <div ref={containerRef} className="map-canvas" aria-label="Mapbox와 OSRM 기반 자동차 일정 경로 지도" />
+      <div ref={containerRef} className="map-canvas" aria-label="Mapbox 기반 자동차 일정 경로 지도" />
       <div className="value-map-controls">
         <button type="button" className={shared.sharing ? "is-sharing" : ""} onClick={shared.sharing ? shared.stop : shared.start}>
           {shared.sharing ? `위치 공유 중 · ${shared.locations.length}명` : "내 위치 공유"}
