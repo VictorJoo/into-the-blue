@@ -1,6 +1,6 @@
 # 가성비 지도 버전 아키텍처
 
-이 문서는 Next.js 앱에서 `Mapbox GL JS + Google Places UI Kit + 자체 OSRM + Supabase Realtime` 조합을 운영하는 방법을 설명한다. 지도 렌더러는 Mapbox 하나로 통일하고, Google은 검색 결과 UI와 원본 장소 링크에만 사용한다.
+이 문서는 Next.js 앱에서 `Mapbox GL JS/Mapbox Directions + Google Places UI Kit + Supabase Realtime` 조합을 운영하는 방법을 설명한다. 지도 렌더러와 기본 자동차 경로는 Mapbox로 통일하고, Google은 검색 결과 UI와 원본 장소 링크에만 사용한다. 자체 OSRM 경로 Worker는 선택 사항이다.
 
 ## 1. 핵심 구조
 
@@ -8,7 +8,8 @@
 flowchart LR
   B["Next.js 웹 · 모바일/PC"] -->|"배경 지도 1회 로드"| M["Mapbox GL JS"]
   B -->|"450ms 디바운스"| P["Google Places UI Kit"]
-  B -->|"JWT + tripId + 좌표"| W["Cloudflare Worker"]
+  B -->|"기본 경로 요청"| D["Mapbox Directions"]
+  B -. "선택: JWT + tripId + 좌표" .-> W["Cloudflare Worker"]
   W -->|"멤버십 확인"| S["Supabase Auth/RLS"]
   W -->|"캐시 miss"| O["지역별 자체 OSRM"]
   O -->|"GeoJSON LineString"| W
@@ -16,7 +17,8 @@ flowchart LR
 ```
 
 - 지도 드래그와 줌은 Mapbox 내부에서 처리한다. Google 지도 객체는 만들지 않는다.
-- 일정의 2~25개 장소는 한 번의 OSRM 요청에 경유점으로 전달한다. 순서는 일정 순서를 보존한다.
+- 일정의 2~25개 장소는 한 번의 Mapbox Directions 요청에 경유점으로 전달한다. 순서는 일정 순서를 보존한다.
+- `NEXT_PUBLIC_ROUTE_API_URL`을 지정하면 Mapbox Directions 대신 자체 OSRM Worker를 사용한다.
 - Worker는 Supabase JWT와 `trip_members`를 확인한 후에만 OSRM을 호출한다.
 - 동일 좌표열의 경로는 Cloudflare Cache API에 하루 동안 저장한다.
 - GPS 공유는 사용자가 버튼을 누른 경우에만 시작하고, 15m 이상 이동하거나 8초가 지난 경우에만 Presence를 갱신한다.
@@ -53,14 +55,14 @@ Mapbox GL JS는 공식 CDN에서 로드한다. npm 의존성으로 전환하려�
 ```env
 NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN=pk.REPLACE_ME
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIza_REPLACE_ME
-NEXT_PUBLIC_ROUTE_API_URL=https://into-the-blue-value.YOUR_ACCOUNT_SUBDOMAIN.workers.dev/api/value/route
+# 선택: NEXT_PUBLIC_ROUTE_API_URL=https://into-the-blue-value.YOUR_ACCOUNT_SUBDOMAIN.workers.dev/api/value/route
 ```
 
 Mapbox 공개 토큰에는 운영 도메인 URL 제한을 설정한다. Google 키에는 Maps JavaScript API와 Places UI Kit에 필요한 Places API만 허용하고 HTTP referrer를 제한한다. Google Routes API는 사용하지 않는다.
 
-## 4. OSRM 백엔드
+## 4. 기본 Mapbox Directions와 선택형 OSRM 백엔드
 
-프론트는 [`osrm.ts`](../src/value/osrm.ts)를 통해 Worker의 `POST /api/value/route`만 호출한다. OSRM 원본 포트는 인터넷에 공개하지 않는다.
+프론트는 [`osrm.ts`](../src/value/osrm.ts)를 통해 기본적으로 Mapbox Directions API를 직접 호출한다. 브라우저에는 URL 제한을 건 `pk.` public token만 사용하며 `sk.` secret token을 넣지 않는다. `NEXT_PUBLIC_ROUTE_API_URL`이 설정된 경우에는 인증된 Worker의 `POST /api/value/route`로 전환한다. 이때 OSRM 원본 포트는 인터넷에 공개하지 않는다.
 
 요청 예시:
 
@@ -86,7 +88,7 @@ Mapbox 공개 토큰에는 운영 도메인 URL 제한을 설정한다. Google �
 }
 ```
 
-Worker는 다음을 강제한다.
+선택형 Worker는 다음을 강제한다.
 
 - Supabase access token 인증
 - 요청 사용자가 해당 여행의 멤버인지 RLS로 확인
@@ -172,13 +174,13 @@ wrangler secret put SUPABASE_PUBLISHABLE_KEY --config wrangler.value.jsonc
 wrangler secret put OSRM_REGIONS_JSON --config wrangler.value.jsonc
 ```
 
-배포:
+선택형 OSRM Worker 배포:
 
 ```bash
 pnpm deploy:route-worker
 ```
 
-`wrangler.value.jsonc`의 `ALLOWED_ORIGINS`를 실제 운영 도메인으로 반드시 바꾼다. 앱 Worker는 `pnpm deploy:cloudflare`, 경로 Worker는 `pnpm deploy:route-worker`로 서로 독립 배포한다. 배포된 경로 Worker URL은 앱의 `NEXT_PUBLIC_ROUTE_API_URL`에 넣고 앱을 다시 빌드한다.
+`wrangler.value.jsonc`의 `ALLOWED_ORIGINS`를 실제 운영 도메인으로 반드시 바꾼다. 앱 Worker는 `pnpm deploy:cloudflare`, 경로 Worker는 `pnpm deploy:route-worker`로 서로 독립 배포한다. 배포된 경로 Worker URL은 앱의 `NEXT_PUBLIC_ROUTE_API_URL`에 넣고 앱을 다시 빌드한다. 이 환경변수를 생략하면 별도 Worker 없이 Mapbox Directions를 계속 사용한다.
 
 ## 7. 운영상 한계와 방어선
 
