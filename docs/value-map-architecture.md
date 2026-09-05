@@ -1,12 +1,12 @@
 # 가성비 지도 버전 아키텍처
 
-이 문서는 기존 Google Maps + Google Routes 버전을 유지하면서, `Mapbox GL JS + Google Places UI Kit + 자체 OSRM + Supabase Realtime` 조합을 별도 빌드로 운영하는 방법을 설명한다.
+이 문서는 Next.js 앱에서 `Mapbox GL JS + Google Places UI Kit + 자체 OSRM + Supabase Realtime` 조합을 운영하는 방법을 설명한다. 지도 렌더러는 Mapbox 하나로 통일하고, Google은 검색 결과 UI와 원본 장소 링크에만 사용한다.
 
 ## 1. 핵심 구조
 
 ```mermaid
 flowchart LR
-  B["React 웹 · 모바일/PC"] -->|"배경 지도 1회 로드"| M["Mapbox GL JS"]
+  B["Next.js 웹 · 모바일/PC"] -->|"배경 지도 1회 로드"| M["Mapbox GL JS"]
   B -->|"450ms 디바운스"| P["Google Places UI Kit"]
   B -->|"JWT + tripId + 좌표"| W["Cloudflare Worker"]
   W -->|"멤버십 확인"| S["Supabase Auth/RLS"]
@@ -40,7 +40,7 @@ UI Kit 검색은 다음처럼 동작한다.
 
 Places UI Kit JavaScript의 일부 요소는 아직 experimental일 수 있으므로 운영 전 지원 브라우저 회귀 테스트와 Mapbox Search 대체 플래그를 둔다.
 
-> 기존 고가 버전의 `GooglePlaceSearch`와 `GoogleMapView`는 그대로 남아 있다. `VITE_MAP_PROVIDER=mapbox`일 때만 UI Kit 검색과 Mapbox 렌더러가 선택된다.
+기존 Google 지도 렌더러와 provider 전환 플래그는 제거했다. [`MapView.tsx`](../src/MapView.tsx)는 항상 Mapbox 렌더러를 사용하고, 토큰이 없을 때는 설정 안내 상태를 표시한다.
 
 ## 3. Mapbox 초기화와 Map Load 방어
 
@@ -51,13 +51,12 @@ Mapbox GL JS는 공식 CDN에서 로드한다. npm 의존성으로 전환하려�
 필수 브라우저 환경변수:
 
 ```env
-VITE_MAP_PROVIDER=mapbox
-VITE_MAPBOX_ACCESS_TOKEN=pk.REPLACE_ME
-VITE_GOOGLE_MAPS_API_KEY=AIza_REPLACE_ME
-VITE_ROUTE_API_URL=/api/value/route
+NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN=pk.REPLACE_ME
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIza_REPLACE_ME
+NEXT_PUBLIC_ROUTE_API_URL=https://into-the-blue-value.YOUR_ACCOUNT_SUBDOMAIN.workers.dev/api/value/route
 ```
 
-Mapbox 공개 토큰에는 운영 도메인 URL 제한을 설정한다. Google 키에는 Maps JavaScript API와 Places UI Kit API만 허용하고 HTTP referrer를 제한한다. Places API와 Routes API는 가성비 프로젝트에서 활성화하지 않는다.
+Mapbox 공개 토큰에는 운영 도메인 URL 제한을 설정한다. Google 키에는 Maps JavaScript API와 Places UI Kit에 필요한 Places API만 허용하고 HTTP referrer를 제한한다. Google Routes API는 사용하지 않는다.
 
 ## 4. OSRM 백엔드
 
@@ -157,11 +156,11 @@ Worker secret 또는 환경변수 `OSRM_REGIONS_JSON`에 bounding box와 내부 
 supabase/migrations/202608210001_value_map.sql
 ```
 
-로컬 실행과 빌드:
+로컬 실행과 Cloudflare용 빌드:
 
 ```bash
-pnpm dev:value
-pnpm build:value
+pnpm dev
+pnpm build:vinext
 ```
 
 Worker 서버 전용 값은 브라우저 `.env`에 넣지 않는다.
@@ -176,10 +175,10 @@ wrangler secret put OSRM_REGIONS_JSON --config wrangler.value.jsonc
 배포:
 
 ```bash
-pnpm deploy:value
+pnpm deploy:route-worker
 ```
 
-`wrangler.value.jsonc`의 `ALLOWED_ORIGINS`를 실제 운영 도메인으로 반드시 바꾼다.
+`wrangler.value.jsonc`의 `ALLOWED_ORIGINS`를 실제 운영 도메인으로 반드시 바꾼다. 앱 Worker는 `pnpm deploy:cloudflare`, 경로 Worker는 `pnpm deploy:route-worker`로 서로 독립 배포한다. 배포된 경로 Worker URL은 앱의 `NEXT_PUBLIC_ROUTE_API_URL`에 넣고 앱을 다시 빌드한다.
 
 ## 7. 운영상 한계와 방어선
 

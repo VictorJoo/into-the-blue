@@ -1,38 +1,65 @@
-# 여정 — Into the Blue
+# Into the Blue
 
-해외 여행 일정과 이동 경로를 한 화면에서 함께 계획하는 React 앱입니다.
+지도 위에서 장소와 동선을 정리하고 동행자와 함께 편집하는 여행 계획 서비스입니다.
 
-## 실행
+현재 구성은 **Next.js 16 App Router + Mapbox Standard(Faded) + Supabase Auth/Postgres/Realtime + Google Places UI Kit + Cloudflare Workers**입니다. 지도는 Mapbox만 렌더링하고, Google은 장소 검색과 원본 지도 링크에만 사용합니다.
+
+## 구조
+
+```text
+브라우저
+ ├─ Next.js 앱 Worker ── Supabase Auth / Postgres / Realtime
+ ├─ Mapbox GL JS ─────── Mapbox Standard · Faded
+ ├─ Google Places UI Kit
+ └─ 경로 Worker ─────── Supabase JWT·멤버십 확인 ── OSRM
+```
+
+- `/`: 첫 화면
+- `/login`: 카카오 로그인과 초대 수락
+- `/planner`: 인증된 여행 계획 화면
+- `/api/import/bookmarks`: 인증된 즐겨찾기 공유 링크 가져오기
+- 별도 `into-the-blue-value` Worker: 인증된 자동차 경로 계산
+
+## 필요한 인증 정보
+
+값은 Git에 커밋하지 않습니다. 루트에 `.env.local`을 만들고 [`.env.example`](.env.example)의 이름대로 입력합니다.
+
+| 서비스 | 필요한 값 | 공개 범위 |
+| --- | --- | --- |
+| Supabase | Project URL, Publishable key | 브라우저 공개 가능. RLS 필수 |
+| Mapbox | Default public token 또는 별도 public token | 브라우저 공개 가능. URL 제한 필수 |
+| Google Cloud | 브라우저 API key | 브라우저 공개 가능. HTTP referrer/API 제한 필수 |
+| Cloudflare | Workers Builds의 GitHub 연결 | 대시보드 또는 Wrangler 인증 |
+| 경로 Worker | OSRM URL, Supabase URL/key | Worker Secret으로만 저장 |
+
+`service_role` 키, Mapbox secret token, Google 서비스 계정 키는 프론트엔드 환경변수에 절대 넣지 않습니다.
+
+## 로컬 실행
+
+Node.js 22.13 이상과 pnpm 9를 사용합니다.
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-프로덕션 빌드는 `pnpm build`로 생성합니다.
+기본 주소는 `http://localhost:3000`입니다. Mapbox 토큰이 없으면 첫 화면은 정적 미리보기를 보여주고, 여행 계획 지도는 설정 안내 상태로 표시됩니다.
 
-Google Maps API를 사용하지 않는 무료 OpenStreetMap 버전은 아래 명령으로 실행하고 빌드합니다. 무료 빌드는 로컬이나 Cloudflare에 Google API 키가 등록되어 있어도 키를 비워서 생성하므로, 기존 Google Maps 전체 링크 기반 장소 추가·수정 방식이 유지됩니다.
-
-```bash
-pnpm dev:free
-pnpm build:free
-pnpm deploy:free
-```
-
-Mapbox 배경 지도, Google Places UI Kit, 자체 OSRM 자동차 경로, Supabase Realtime 위치 공유를 사용하는 가성비 버전은 아래 명령으로 실행합니다.
+검증 명령:
 
 ```bash
-pnpm dev:value
-pnpm build:value
-pnpm deploy:value
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm build:vinext
+pnpm deploy:cloudflare:check
 ```
 
-구조, Google Places 정책 제한, OSRM 지역 shard와 배포 방법은 [`docs/value-map-architecture.md`](docs/value-map-architecture.md)를 참고하세요.
+## Supabase 설정
 
-## Supabase 협업 기능 적용
+### 데이터베이스
 
-로그인, 여행 초대, 작성자 표시와 공동 저장을 사용하려면 Supabase Dashboard의 **SQL Editor**에서
-아래 마이그레이션을 순서대로 실행합니다.
+Supabase Dashboard의 **SQL Editor**에서 아래 파일을 번호 순서대로 실행합니다. 모든 사용자 데이터 테이블은 RLS를 켠 상태로 사용합니다.
 
 1. [`supabase/migrations/202608100001_collaboration.sql`](supabase/migrations/202608100001_collaboration.sql)
 2. [`supabase/migrations/202608100002_trip_management.sql`](supabase/migrations/202608100002_trip_management.sql)
@@ -43,83 +70,109 @@ pnpm deploy:value
 7. [`supabase/migrations/202608120002_trip_courses.sql`](supabase/migrations/202608120002_trip_courses.sql)
 8. [`supabase/migrations/202608210001_value_map.sql`](supabase/migrations/202608210001_value_map.sql)
 
-필수 공개 환경변수는 `.env.example`을 참고해 로컬 `.env.local`과 Cloudflare Workers Builds에 설정합니다.
+### Auth URL
 
-```env
-VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_ME
-```
-
-## Google Maps 연동
-
-Google Maps를 사용하면 확정 일정 순서대로 실제 도로 경로를 계산하고, 확정·후보 장소를 클릭해 지도 이동과 상세 정보창을 열 수 있습니다. API 키가 없으면 기존 OpenStreetMap 방식으로 자동 전환됩니다.
-
-1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트를 만들고 결제 계정을 연결합니다.
-2. **Maps JavaScript API**와 **Routes API**를 사용 설정합니다.
-3. **API 및 서비스 → 사용자 인증 정보**에서 API 키를 만듭니다.
-4. 애플리케이션 제한을 **웹사이트(HTTP 리퍼러)**로 설정하고 아래 주소를 허용합니다.
+**Authentication → URL Configuration**에서 다음처럼 설정합니다.
 
 ```text
-http://localhost:5173/*
-http://127.0.0.1:5173/*
+Site URL
+https://into-the-blue.proudvictor89.workers.dev
+
+Redirect URLs
+http://localhost:3000/**
+http://127.0.0.1:3000/**
+https://into-the-blue.proudvictor89.workers.dev/**
+```
+
+사용자 도메인을 붙이면 그 주소의 `/**`도 추가합니다. 카카오 개발자 콘솔에는 앱 주소가 아니라 Supabase가 표시하는 아래 Redirect URI를 등록합니다.
+
+```text
+https://<project-ref>.supabase.co/auth/v1/callback
+```
+
+카카오 동의 항목은 최소 `profile_nickname`을 사용합니다. `account_email` 권한이 없는 앱이라면 Supabase Kakao provider의 이메일 scope를 요청하지 않도록 맞춰야 합니다.
+
+## Mapbox 설정
+
+Mapbox **Access tokens**에서 public token을 만들고 URL 제한에 다음 출처를 등록합니다.
+
+```text
+http://localhost:3000/*
+http://127.0.0.1:3000/*
 https://into-the-blue.proudvictor89.workers.dev/*
 ```
 
-5. API 제한은 **Maps JavaScript API**, **Routes API**만 선택합니다.
-6. 로컬 `.env.local`과 Cloudflare 빌드 환경변수에 키를 추가합니다.
+사용자 도메인을 붙이면 그 출처도 추가합니다. 토큰은 `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`에 입력합니다. 앱은 Mapbox Standard의 `faded` 테마를 사용합니다.
 
-```env
-VITE_GOOGLE_MAPS_API_KEY=AIza_REPLACE_ME
-```
+## Google Places 설정
 
-Google Maps Essentials SKU는 서비스별 월 10,000건까지 무료 사용량이 제공됩니다. 예기치 않은 과금을 막으려면 각 API의 일일 할당량을 약 300건 이하로 제한하고 결제 예산 알림도 설정하세요. 예산 알림은 결제를 자동 차단하지 않으므로 할당량 제한을 함께 사용해야 합니다.
-
-카카오 OAuth 복귀를 위해 Supabase **Authentication → URL Configuration**에서 **Site URL**은 운영 주소로 두고, **Redirect URLs**에 로컬 주소와 운영 주소를 모두 허용합니다.
+Google Cloud Console에서 **Maps JavaScript API**와 Places UI Kit에 필요한 **Places API**를 활성화합니다. 키의 애플리케이션 제한은 **웹사이트(HTTP referrer)**, API 제한은 실제 사용하는 두 API로 설정합니다.
 
 ```text
-http://localhost:5173/**
-http://127.0.0.1:5173/**
-https://into-the-blue.<account-subdomain>.workers.dev/**
+http://localhost:3000/*
+http://127.0.0.1:3000/*
+https://into-the-blue.proudvictor89.workers.dev/*
 ```
 
-로컬 개발 서버는 OAuth 허용 주소와 항상 일치하도록 `5173` 포트를 고정해서 사용합니다. 이미 다른 프로세스가 5173 포트를 사용 중이면 임의의 다른 포트로 로그인하지 않고 실행 오류를 내므로, 해당 프로세스를 종료한 뒤 `pnpm dev` 또는 `pnpm dev:value`를 다시 실행하세요. 카카오 개발자 콘솔의 Redirect URI는 로컬 앱 주소가 아니라 Supabase가 안내하는 `https://<project-ref>.supabase.co/auth/v1/callback`을 등록합니다.
+키는 `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`에 입력합니다. Google 지도 자체나 Google Routes API는 렌더링·경로 계산에 사용하지 않습니다.
+
+## Cloudflare 앱 Worker 배포
+
+Cloudflare **Workers & Pages → into-the-blue → Settings → Builds**에서 GitHub 저장소와 `main` 브랜치를 연결합니다.
+
+```text
+Build command:  pnpm build:vinext
+Deploy command: pnpm exec wrangler deploy --config dist/server/wrangler.json
+Root directory: /
+Node version:   22.13 이상
+```
+
+Build variables에는 아래 여섯 값을 등록합니다. `NEXT_PUBLIC_*` 값은 브라우저 번들에 빌드 시 포함되므로 값을 바꾼 뒤에는 반드시 새 빌드를 실행합니다.
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+NEXT_PUBLIC_ROUTE_API_URL
+NEXT_PUBLIC_SITE_URL
+```
+
+비프로덕션 브랜치 빌드는 PR 미리보기가 필요할 때만 켭니다. 운영 브랜치는 `main`입니다.
+별도 미리보기 도메인에서 전체 기능을 시험하려면 그 정확한 Origin을 Supabase Redirect URLs, Mapbox/Google 허용 URL, 경로 Worker의 `ALLOWED_ORIGINS`에도 추가합니다.
+
+## 경로 Worker 배포
+
+`worker/value.ts`는 앱과 별도로 배포합니다. 브라우저 요청의 Supabase access token과 `trip_members` 멤버십을 확인한 뒤 OSRM을 호출합니다.
+
+먼저 [`wrangler.value.jsonc`](wrangler.value.jsonc)의 `ALLOWED_ORIGINS`를 운영 도메인에 맞춥니다. 이후 Worker Secret을 등록하고 배포합니다.
+
+```bash
+pnpm exec wrangler secret put OSRM_BASE_URL --config wrangler.value.jsonc
+pnpm exec wrangler secret put SUPABASE_URL --config wrangler.value.jsonc
+pnpm exec wrangler secret put SUPABASE_PUBLISHABLE_KEY --config wrangler.value.jsonc
+pnpm exec wrangler secret put OSRM_REGIONS_JSON --config wrangler.value.jsonc
+pnpm deploy:route-worker
+```
+
+단일 OSRM 서버만 쓰면 `OSRM_REGIONS_JSON`은 생략할 수 있습니다. 배포된 경로 Worker의 주소를 앱의 `NEXT_PUBLIC_ROUTE_API_URL`에 `/api/value/route`까지 포함해 등록한 뒤 앱을 다시 빌드합니다.
+
+## 즐겨찾기 그룹 가져오기
+
+상단의 **즐겨찾기 가져오기**에서 Google 지도·카카오맵·네이버 지도의 공개 공유 링크를 날짜 미정 후보로 가져올 수 있습니다. `/api/import/bookmarks`는 로그인한 사용자의 Bearer token을 확인하므로 로컬과 Cloudflare 배포 환경에서 동일하게 동작합니다.
+
+- 지원 링크: `naver.me/…`, `kko.kakao.com/…`, `maps.app.goo.gl/…`
+- 세 서비스의 공개 공유 페이지 구조를 해석하므로 서비스 개편 시 파서 보수가 필요할 수 있습니다.
+- 같은 이름의 장소가 이미 일정이나 후보에 있으면 건너뜁니다.
 
 ## 주요 기능
 
-- 시간순 일정과 현재 시간 진행 표시
-- OpenStreetMap 기반 확정 일정 경로 및 장소 이동
-- 지도 장소 팝업의 Google 리뷰 링크와 댓글 바로가기
-- Google Maps 전체 링크에서 장소명과 실제 위치 자동 추출
-- 입력한 검색어로 무료 Google Maps 검색 결과 열기
-- 방문 시간 입력과 일정 자동 정렬
-- 오늘을 기본으로 일정이 있는 이전·다음 날짜 탐색
-- 전체 여행 기간 표시와 날짜별 일정 제목 편집
-- 지도 없이 전체 일정을 정리한 A4 PDF 저장 화면
-- 확정 일정/후보 사이 드래그 앤 드롭 이동
-- API 키 없는 Google 리뷰·장소 링크
-- 각 일정의 확정/후보 장소 목록
-- 확정·후보 장소 메모 등록 및 자유로운 수정
-- 모든 장소 삭제 전 확인 및 후보 승격 선택
-- 접근 가능한 여행 목록 전환과 소유자 전용 여행 삭제
-- 날짜별 일정·메모·댓글의 Supabase 공동 저장
-- 모바일 일정/지도 전환 탭을 포함한 반응형 UI
-- Cloudflare Workers Builds 자동 배포
+- 날짜·시간·장소를 편집하는 코스 중심 일정
+- 확정·후보 장소, 메모, 댓글, 작성자 표시
+- 지도 팝업의 Google 링크·댓글·수정 동작
+- 동행자 초대 링크와 Supabase 공동 편집
+- 접근 가능한 여행 전환, 소유자 전용 이름 변경·삭제
+- Mapbox 경로, 일정 PDF 저장, Realtime 현재 위치 공유
+- 320px 모바일부터 넓은 데스크톱까지 반응형 화면
 
-## Cloudflare 배포
-
-Cloudflare Workers의 **Settings → Builds**에서 GitHub 저장소와 `main` 브랜치를 연결합니다. Build variables에 Supabase 공개 환경변수를 등록하면 `main` 푸시마다 자동으로 빌드·배포됩니다.
-
-## 즐겨찾기 그룹 가져오기 (실험적)
-
-상단 헤더의 **즐겨찾기 가져오기** 버튼에 구글 지도·카카오맵·네이버 지도의 즐겨찾기 그룹 공유 링크를 붙여넣으면, 그룹에 담긴 장소가 모두 날짜 미정 후보로 추가됩니다. 이미 일정·후보에 있는 장소는 이름 기준으로 자동으로 건너뜁니다.
-
-- 지원 링크: `naver.me/…`(네이버), `kko.kakao.com/…`(카카오), `maps.app.goo.gl/…`(구글)
-- 세 서비스 모두 공식 API가 없어 공유 페이지의 내부 데이터를 파싱합니다(`server/importBookmarks.ts`). 서비스 개편 시 동작이 깨질 수 있습니다.
-- CORS 때문에 브라우저가 직접 호출할 수 없어 vite dev 서버 미들웨어(`/api/import/bookmarks`)가 대신 요청합니다. 현재는 **로컬 개발(pnpm dev)에서만 동작**하며, 배포하려면 같은 모듈을 Cloudflare Worker(`worker/value.ts`)에 연결해야 합니다.
-- 카카오맵은 좌표가 내부 좌표계(WCONGNAMUL)로 내려올 수 있어 WGS84로 변환합니다. 변환 파라미터는 실제 링크로 검증이 필요하므로, 지도에서 핀 위치가 어긋나면 이슈로 남겨주세요.
-
-파서 단독 테스트는 dev 서버 실행 후 아래처럼 확인할 수 있습니다.
-
-```bash
-curl "http://localhost:5173/api/import/bookmarks?url=<공유링크>"
-```
+세부 지도·OSRM·데이터 정책은 [`docs/value-map-architecture.md`](docs/value-map-architecture.md)를 참고하세요.

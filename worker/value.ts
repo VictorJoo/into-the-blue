@@ -1,9 +1,4 @@
-interface AssetFetcher {
-  fetch(request: Request): Promise<Response>;
-}
-
 interface Env {
-  ASSETS: AssetFetcher;
   OSRM_BASE_URL: string;
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
@@ -32,7 +27,7 @@ function allowedOrigin(request: Request, env: Env) {
   return allowed.includes(origin) ? origin : null;
 }
 
-function cors(origin: string | null) {
+function cors(origin: string | null): Record<string, string> {
   return origin ? {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Headers": "authorization,content-type",
@@ -169,6 +164,6 @@ export default {
       if (request.method !== "POST") return json({ error: "POST만 지원합니다." }, 405, cors(origin));
       return route(request, env);
     }
-    return env.ASSETS.fetch(request);
+    return json({ error: "찾을 수 없는 경로입니다." }, 404);
   },
 };

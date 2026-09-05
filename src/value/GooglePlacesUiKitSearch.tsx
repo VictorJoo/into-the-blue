@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps, type GoogleLatLng } from "../googleMaps";
 import type { MapSearchResult } from "../types";
@@ -62,7 +64,7 @@ export default function GooglePlacesUiKitSearch({
   locationBias?: [number, number];
   autoFocus?: boolean;
 }) {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim();
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
   const hostRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<PlaceTextSearchRequestElement | null>(null);
   const queryRef = useRef(value);
@@ -146,7 +148,7 @@ export default function GooglePlacesUiKitSearch({
         <input
           value={value}
           onChange={(event) => { setError(""); onChange(event.target.value); }}
-          placeholder="예: 푸꾸옥 야시장"
+          placeholder="예: 해운대 해수욕장"
           autoFocus={autoFocus}
           aria-label="Google 장소 검색"
         />

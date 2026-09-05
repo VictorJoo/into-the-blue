@@ -1,6 +1,6 @@
 // 구글 지도 / 카카오맵 / 네이버 지도 즐겨찾기(저장 목록) 공유 링크에서
-// 장소 목록을 가져오는 파서입니다. fetch API만 사용하므로
-// vite dev 미들웨어(Node)와 Cloudflare Worker 어디서든 동작합니다.
+// 장소 목록을 가져오는 파서입니다. 표준 fetch API만 사용하므로
+// Next.js Route Handler와 Cloudflare Worker에서 동작합니다.
 //
 // 세 서비스 모두 공식 API가 없어 공유 페이지가 내부적으로 사용하는
 // 엔드포인트·페이로드를 파싱합니다. 서비스 개편 시 깨질 수 있으므로
@@ -43,6 +43,9 @@ const BROWSER_HEADERS: Record<string, string> = {
   "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
 };
 
+const FETCH_TIMEOUT_MS = 10_000;
+const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+
 function detectProvider(rawUrl: string): ImportProvider | null {
   let host = "";
   try {
@@ -52,7 +55,7 @@ function detectProvider(rawUrl: string): ImportProvider | null {
   }
   if (host === "naver.me" || host.endsWith(".naver.com") || host.endsWith(".naver.me")) return "naver";
   if (host === "kko.to" || host === "kko.kakao.com" || host.endsWith(".kakao.com") || host.endsWith(".daum.net")) return "kakao";
-  if (host === "maps.app.goo.gl" || host === "goo.gl" || host.endsWith("google.com") || host.endsWith(".google.co.kr")) return "google";
+  if (host === "maps.app.goo.gl" || host === "goo.gl" || host === "google.com" || host.endsWith(".google.com") || host === "google.co.kr" || host.endsWith(".google.co.kr")) return "google";
   return null;
 }
 
@@ -62,20 +65,55 @@ function isValidLatLng(lat: number, lng: number) {
     && !(lat === 0 && lng === 0);
 }
 
+async function fetchResponse(url: string, init: RequestInit = {}) {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  } catch (cause) {
+    if (cause instanceof Error && (cause.name === "AbortError" || cause.name === "TimeoutError")) {
+      throw new ImportError("공유 페이지 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.", 504);
+    }
+    throw cause;
+  }
+}
+
+async function readLimitedText(response: Response) {
+  const contentLength = Number(response.headers.get("content-length") || 0);
+  if (contentLength > MAX_RESPONSE_BYTES) throw new ImportError("공유 페이지 응답이 너무 큽니다.", 413);
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new ImportError("공유 페이지 응답이 너무 큽니다.", 413);
+    }
+    chunks.push(value);
+  }
+
+  const merged = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(merged);
+}
+
 async function fetchText(url: string, headers: Record<string, string> = {}) {
-  const response = await fetch(url, { headers: { ...BROWSER_HEADERS, ...headers }, redirect: "follow" });
-  const body = await response.text();
+  const response = await fetchResponse(url, { headers: { ...BROWSER_HEADERS, ...headers }, redirect: "follow" });
+  const body = await readLimitedText(response);
   return { response, body, finalUrl: response.url || url };
 }
 
 async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<unknown | null> {
   try {
-    const response = await fetch(url, {
-      headers: { ...BROWSER_HEADERS, Accept: "application/json", ...headers },
-      redirect: "follow",
-    });
+    const { response, body: text } = await fetchText(url, { Accept: "application/json", ...headers });
     if (!response.ok) return null;
-    const text = await response.text();
     const stripped = text.replace(/^\)\]\}'[^\n]*\n?/, "");
     return JSON.parse(stripped) as unknown;
   } catch {
@@ -489,11 +527,11 @@ async function importGoogle(rawUrl: string): Promise<ImportResult> {
   let listId = extractGoogleListId(rawUrl);
   if (!listId) {
     const simpleHeaders = { "User-Agent": "curl/8.4.0", "Accept": "*/*" };
-    const manual = await fetch(rawUrl, { headers: simpleHeaders, redirect: "manual" });
+    const manual = await fetchResponse(rawUrl, { headers: simpleHeaders, redirect: "manual" });
     await manual.body?.cancel();
     listId = extractGoogleListId(manual.headers.get("location") ?? "");
     if (!listId) {
-      const followed = await fetch(rawUrl, { headers: simpleHeaders, redirect: "follow" });
+      const followed = await fetchResponse(rawUrl, { headers: simpleHeaders, redirect: "follow" });
       await followed.body?.cancel();
       listId = extractGoogleListId(followed.url || "");
     }
@@ -513,14 +551,10 @@ async function importGoogle(rawUrl: string): Promise<ImportResult> {
   // 2) 지도 SPA가 쓰는 내부 목록 API 호출 (최대 500개)
   const pb = `!1m4!1s${listId}!2e1!3m1!1e1!2e2!3e2!4i500`;
   const listUrl = `https://www.google.com/maps/preview/entitylist/getlist?authuser=0&hl=ko&gl=kr&pb=${encodeURIComponent(pb)}`;
-  const response = await fetch(listUrl, {
-    headers: { ...BROWSER_HEADERS, Cookie: consentCookie, Referer: "https://www.google.com/maps/" },
-    redirect: "follow",
-  });
+  const { response, body: text } = await fetchText(listUrl, { Cookie: consentCookie, Referer: "https://www.google.com/maps/" });
   if (!response.ok) {
     throw new ImportError(`구글 목록 API 응답 오류 (HTTP ${response.status}). 목록이 '링크가 있는 모든 사용자'에게 공유되어 있는지 확인해주세요.`);
   }
-  const text = await response.text();
   let data: unknown;
   try {
     data = JSON.parse(text.replace(/^\)\]\}'\s*/, ""));
@@ -533,41 +567,6 @@ async function importGoogle(rawUrl: string): Promise<ImportResult> {
     throw new ImportError("구글 지도 목록에서 장소를 찾지 못했습니다. 목록이 비어 있거나 응답 형식이 바뀌었을 수 있습니다.");
   }
   return { provider: "google", providerLabel: PROVIDER_LABELS.google, groupTitle, items: dedupeItems(items), warnings };
-}
-
-// ---------------------------------------------------------------------------
-
-// 로컬 디버그용: 여러 요청 조합으로 단축 링크가 어떻게 응답하는지 본다.
-export async function debugResolve(rawUrl: string) {
-  const variants: Array<{ label: string; headers: Record<string, string> }> = [
-    { label: "chrome-ua", headers: BROWSER_HEADERS },
-    { label: "curl-ua", headers: { "User-Agent": "curl/8.4.0", "Accept": "*/*" } },
-    { label: "no-ua", headers: { "Accept": "*/*" } },
-    { label: "googlebot", headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "Accept": "*/*" } },
-    { label: "old-android", headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 4.4.2; Nexus 5 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0 Mobile Safari/537.36", "Accept": "*/*" } },
-  ];
-  const results: Record<string, unknown> = {};
-  for (const variant of variants) {
-    try {
-      const response = await fetch(rawUrl, { headers: variant.headers, redirect: "manual" });
-      const location = response.headers.get("location");
-      let followedUrl: string | null = null;
-      if (!location) {
-        const followed = await fetch(rawUrl, { headers: variant.headers, redirect: "follow" });
-        followedUrl = followed.url;
-        await followed.text();
-      }
-      results[variant.label] = {
-        status: response.status,
-        location: location?.slice(0, 220) ?? null,
-        followedUrl: followedUrl?.slice(0, 220) ?? null,
-        listId: extractGoogleListId(location ?? followedUrl ?? ""),
-      };
-    } catch (cause) {
-      results[variant.label] = { fetchError: cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause) };
-    }
-  }
-  return results;
 }
 
 export async function importBookmarks(rawUrl: string): Promise<ImportResult> {

@@ -17,7 +17,7 @@ export async function cacheSelectedPlaceLocation(place: MapSearchResult) {
     refreshed_at: refreshedAt.toISOString(),
     expires_at: new Date(refreshedAt.getTime() + THIRTY_DAYS_MS).toISOString(),
   }, { onConflict: "google_place_id,user_id" });
-  if (error && import.meta.env.DEV) console.warn("장소 좌표 TTL 캐시 저장 실패", error);
+  if (error && process.env.NODE_ENV === "development") console.warn("장소 좌표 TTL 캐시 저장 실패", error);
 }
 
 export async function readCachedPlaceLocation(placeId: string) {

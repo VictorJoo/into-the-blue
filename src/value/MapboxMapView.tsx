@@ -93,7 +93,7 @@ function upsertRoute(map: MapboxMap, route: RouteGeoJson) {
     source: ROUTE_SOURCE,
     slot: "middle",
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#fffaf0", "line-width": 9, "line-opacity": 0.82 },
+    paint: { "line-color": "#ffffff", "line-width": 9, "line-opacity": 0.92 },
   });
   map.addLayer({
     id: ROUTE_LINE,
@@ -101,7 +101,7 @@ function upsertRoute(map: MapboxMap, route: RouteGeoJson) {
     source: ROUTE_SOURCE,
     slot: "middle",
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#ef765f", "line-width": 5, "line-opacity": 0.96 },
+    paint: { "line-color": "#007aff", "line-width": 4.5, "line-opacity": 0.94 },
   });
 }
 
@@ -169,6 +169,14 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
       const map = new mapbox.Map({
         container: containerRef.current,
         style: "mapbox://styles/mapbox/standard",
+        config: {
+          basemap: {
+            theme: "faded",
+            lightPreset: "day",
+            showPointOfInterestLabels: true,
+            showTransitLabels: true,
+          },
+        },
         center: lngLat(first),
         zoom: 12,
         attributionControl: true,
@@ -276,6 +284,17 @@ export default function MapboxMapView(props: MapViewProps & { accessToken: strin
     markersRef.current[point.id]?.togglePopup();
     Object.entries(markersRef.current).forEach(([id, marker]) => marker.getElement().classList.toggle("is-selected", id === selectedId));
   }, [focusPoint, places, ready, selectedId]);
+
+  useEffect(() => {
+    const closePopupOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      containerRef.current
+        ?.querySelectorAll<HTMLButtonElement>(".mapboxgl-popup-close-button")
+        .forEach((button) => button.click());
+    };
+    window.addEventListener("keydown", closePopupOnEscape);
+    return () => window.removeEventListener("keydown", closePopupOnEscape);
+  }, []);
 
   useEffect(() => {
     const mapbox = mapboxRef.current;

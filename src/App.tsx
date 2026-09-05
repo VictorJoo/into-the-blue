@@ -1,7 +1,8 @@
+"use client";
+
 import { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "./lib/auth";
 import { supabase } from "./lib/supabase";
-import { PHU_QUOC_SHARED_CANDIDATES } from "./data/phuQuocSharedCandidates";
 import { categoryMeta, inferPlaceCategory, PLACE_CATEGORIES, placeCategory } from "./categories";
 import GooglePlaceSearch, { type GooglePlaceSelection } from "./GooglePlaceSearch";
 import MapView from "./MapView";
@@ -29,7 +30,6 @@ type PlaceEditValues = {
   category: PlaceCategory;
 };
 const CATEGORY_SCHEMA_VERSION = 20260812;
-const PHU_QUOC_CANDIDATE_SEED_VERSION = 1;
 const DEFAULT_COURSE_ID = "course-a";
 
 function defaultCourseName(index: number) {
@@ -152,32 +152,6 @@ function distanceMeters(from: [number, number], to: [number, number]) {
   const value = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(longitudeDelta / 2) ** 2;
   return 6_371_000 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
-}
-
-function isPhuQuocItinerary(schedules: SchedulesByDate) {
-  const titles = Object.values(schedules).flat().map((place) => normalizedPlaceName(place.title));
-  return titles.some((title) => title.includes(normalizedPlaceName("The Residence Resort & Villas")))
-    && titles.some((title) => title.includes(normalizedPlaceName("Sunset Town")) || title.includes(normalizedPlaceName("썬셋타운")));
-}
-
-function mergePhuQuocSharedCandidates(schedules: SchedulesByDate, saved: Candidate[]) {
-  const registered = new Set([
-    ...Object.values(schedules).flatMap((places) => places.flatMap((place) => [place, ...place.alternatives])).map((place) => normalizedPlaceName(place.title)),
-    ...saved.map((candidate) => normalizedPlaceName(candidate.title)),
-  ]);
-  const imported = PHU_QUOC_SHARED_CANDIDATES
-    .filter((place) => !registered.has(normalizedPlaceName(place.title)))
-    .map<Candidate>((place, index) => ({
-      id: `phu-quoc-shared-${String(index + 1).padStart(2, "0")}`,
-      time: "",
-      title: place.title,
-      category: inferPlaceCategory({ title: place.title, note: "" }),
-      categoryVersion: CATEGORY_SCHEMA_VERSION,
-      note: "Google Maps 공유 목록에서 가져온 날짜 미정 후보",
-      coords: place.coords,
-      googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.title)}`,
-    }));
-  return [...saved, ...imported];
 }
 
 function sortCandidates(items: Candidate[]) {
@@ -338,7 +312,7 @@ function AddPlacePanel({
   onAdd: (candidate: Candidate, rank: AddRank, parentId: string, date: string) => void;
   onSearchResults: (places: MapSearchResult[]) => void;
 }) {
-  const googleSearchEnabled = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim());
+  const googleSearchEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
   const [searchQuery, setSearchQuery] = useState("");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(defaultDate);
@@ -478,7 +452,7 @@ function EditPlacePanel({
   onDelete: () => void;
   onSearchResults: (places: MapSearchResult[]) => void;
 }) {
-  const googleSearchEnabled = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim());
+  const googleSearchEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
   const item = candidate ?? place;
   const [searchQuery, setSearchQuery] = useState(() => placeSearchName(item));
   const [title, setTitle] = useState(item.title);
@@ -610,7 +584,7 @@ function EditUnscheduledPanel({ item, targetDate, confirmedPlaces, onClose, onSa
   onDelete: () => void;
   onSearchResults: (places: MapSearchResult[]) => void;
 }) {
-  const googleSearchEnabled = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim());
+  const googleSearchEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
   const [searchQuery, setSearchQuery] = useState(() => placeSearchName(item));
   const [title, setTitle] = useState(item.title);
   const [placeName, setPlaceName] = useState(() => placeSearchName(item));
@@ -666,7 +640,7 @@ function AddCandidatePanel({ place, unscheduledCandidates, registeredItems, onCl
   onSearchResults: (places: MapSearchResult[]) => void;
   onPreview: (candidate: Candidate) => void;
 }) {
-  const googleSearchEnabled = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim());
+  const googleSearchEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
   const [searchQuery, setSearchQuery] = useState("");
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<PlaceCategory>("other");
@@ -1038,7 +1012,10 @@ function ImportBookmarksDialog({ onClose, onImport }: {
     setError("");
     setSummary(null);
     try {
-      const response = await fetch(`/api/import/bookmarks?url=${encodeURIComponent(target)}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`/api/import/bookmarks?url=${encodeURIComponent(target)}`, {
+        headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
       const payload = await response.json().catch(() => null) as (BookmarkImportResult & { error?: string }) | null;
       if (!response.ok || !payload || !Array.isArray(payload.items)) {
         setError(payload?.error || "즐겨찾기를 불러오지 못했습니다. 공유 링크를 다시 확인해주세요.");
@@ -1047,7 +1024,7 @@ function ImportBookmarksDialog({ onClose, onImport }: {
       const outcome = onImport(payload);
       setSummary({ ...outcome, providerLabel: payload.providerLabel, groupTitle: payload.groupTitle, warnings: payload.warnings ?? [] });
     } catch {
-      setError("가져오기 요청에 실패했습니다. 개발 서버(pnpm dev)로 실행 중인지 확인해주세요.");
+      setError("가져오기 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setBusy(false);
     }
@@ -1281,10 +1258,7 @@ export default function App() {
         // A missing server row means this trip still uses the former browser-only
         // storage. Import that local list once; afterwards Supabase is authoritative.
         const restoredCandidates = candidatePool ? serverCandidates : localCandidates;
-        const shouldSeed = isPhuQuocItinerary(nextSchedules)
-          && (candidatePool?.seed_version ?? 0) < PHU_QUOC_CANDIDATE_SEED_VERSION;
-        const candidates = shouldSeed ? mergePhuQuocSharedCandidates(nextSchedules, restoredCandidates) : restoredCandidates;
-        setUnscheduledCandidates(candidates);
+        setUnscheduledCandidates(restoredCandidates);
       } catch {
         setUnscheduledCandidates([]);
       }
@@ -1356,7 +1330,7 @@ export default function App() {
       const { error } = await supabase.from("trip_candidate_pools").upsert({
         trip_id: trip.id,
         candidates: unscheduledCandidates,
-        seed_version: isPhuQuocItinerary(schedules) ? PHU_QUOC_CANDIDATE_SEED_VERSION : 0,
+        seed_version: 0,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       }, { onConflict: "trip_id" });
@@ -2334,7 +2308,7 @@ export default function App() {
       setDataError("초대 링크를 만들지 못했습니다. 데이터베이스 마이그레이션을 확인해주세요.");
       return;
     }
-    const inviteUrl = new URL(window.location.origin);
+    const inviteUrl = new URL("/login", window.location.origin);
     inviteUrl.searchParams.set("invite", token);
     try {
       await navigator.clipboard.writeText(inviteUrl.toString());
@@ -2449,51 +2423,49 @@ export default function App() {
     printWindow.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(trip.name)} 일정</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>
       @page { size: A4; margin: 13mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; background: #f5f1e8; color: #24352f; font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .sheet { width: 100%; max-width: 860px; margin: 0 auto; padding: 28px; background: #fffdf8; }
-      .cover { position: relative; overflow: hidden; min-height: 210px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 30px; padding: 36px; border-radius: 24px; background: #173f36; color: white; }
-      .cover:after { content: ""; position: absolute; top: -70px; right: -55px; width: 230px; height: 230px; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; box-shadow: 0 0 0 35px rgba(255,255,255,.035), 0 0 0 70px rgba(255,255,255,.025); }
+      body { margin: 0; background: #f5f7fa; color: #1d1d1f; font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .sheet { width: 100%; max-width: 860px; margin: 0 auto; padding: 28px; background: #fff; }
+      .cover { position: relative; min-height: 210px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 30px; padding: 36px; border: 1px solid rgba(60,60,67,.12); border-radius: 24px; background: #f5f7fa; color: #1d1d1f; }
       .cover-copy { position: relative; z-index: 1; min-width: 0; }
-      .eyebrow { display: block; margin-bottom: 12px; color: #f4a08f; font-size: 10px; font-weight: 800; letter-spacing: .22em; }
-      .cover h1 { max-width: 100%; margin: 0; overflow-wrap: anywhere; word-break: keep-all; font-family: Georgia, "Noto Serif KR", serif; font-size: 40px; line-height: 1.08; letter-spacing: -.03em; }
-      .cover-copy > p { margin: 13px 0 0; color: rgba(255,255,255,.76); font-size: 13px; line-height: 1.4; }
+      .eyebrow { display: block; margin-bottom: 12px; color: #007aff; font-size: 10px; font-weight: 800; letter-spacing: .18em; }
+      .cover h1 { max-width: 100%; margin: 0; overflow-wrap: anywhere; word-break: keep-all; font: 600 40px/1.08 "Pretendard Variable", Pretendard, sans-serif; letter-spacing: -.03em; }
+      .cover-copy > p { margin: 13px 0 0; color: #6e6e73; font-size: 13px; line-height: 1.4; }
       .stats { position: relative; z-index: 1; display: flex; align-self: end; gap: 18px; }
-      .stats div { min-width: 64px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,.25); }
-      .stats strong { display: block; font-size: 20px; }
-      .stats span { color: rgba(255,255,255,.65); font-size: 9px; }
+      .stats div { min-width: 64px; padding-left: 12px; border-left: 1px solid rgba(60,60,67,.16); }
+      .stats strong { display: block; color: #1d1d1f; font-size: 20px; font-variant-numeric: tabular-nums; }
+      .stats span { color: #6e6e73; font-size: 9px; }
       .day { margin-top: 30px; break-before: auto; }
-      .day + .day { padding-top: 9px; border-top: 1px solid #e5ded2; }
-      .day-heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; padding: 0 2px 12px; border-bottom: 2px solid #173f36; }
-      .day-heading span { color: #ef765f; font-size: 9px; font-weight: 800; letter-spacing: .13em; }
+      .day + .day { padding-top: 9px; border-top: 1px solid rgba(60,60,67,.12); }
+      .day-heading { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; padding: 0 2px 12px; border-bottom: 2px solid #007aff; }
+      .day-heading span { color: #007aff; font-size: 9px; font-weight: 800; letter-spacing: .13em; }
       .day-heading > div { min-width: 0; }
-      .day-heading h2 { margin: 5px 0 0; overflow-wrap: anywhere; word-break: keep-all; font-family: Georgia, "Noto Serif KR", serif; color: #173f36; font-size: 23px; line-height: 1.2; }
-      .day-heading time { flex: none; color: #6f7b75; font-size: 11px; font-weight: 700; white-space: nowrap; }
-      .course-section + .course-section { margin-top: 22px; padding-top: 16px; border-top: 1px dashed #d9d2c6; }
-      .course-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; padding: 7px 10px; border-radius: 9px; background: #eaf2ec; color: #315c4c; }
+      .day-heading h2 { margin: 5px 0 0; overflow-wrap: anywhere; word-break: keep-all; color: #1d1d1f; font: 600 23px/1.2 "Pretendard Variable", Pretendard, sans-serif; }
+      .day-heading time { flex: none; color: #6e6e73; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .course-section + .course-section { margin-top: 22px; padding-top: 16px; border-top: 1px dashed rgba(60,60,67,.16); }
+      .course-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; padding: 7px 10px; border-radius: 9px; background: #f0f2f5; color: #3a3a3c; }
       .course-heading strong { font-size: 11px; }
       .course-heading span { font-size: 8px; font-weight: 700; }
       .place { display: grid; grid-template-columns: 66px 1fr; gap: 15px; margin-bottom: 14px; break-inside: avoid; }
-      .time-column { display: flex; flex-direction: column; align-items: center; gap: 7px; padding-top: 5px; color: #64716b; }
-      .time-column strong { font-size: 11px; }
-      .time-column span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #ef765f; color: white; font-size: 10px; font-weight: 800; }
-      .place-body { position: relative; padding: 15px 16px; border: 1px solid #e3ddd2; border-radius: 15px; background: white; }
+      .time-column { display: flex; flex-direction: column; align-items: center; gap: 7px; padding-top: 5px; color: #6e6e73; }
+      .time-column strong { font-size: 11px; font-variant-numeric: tabular-nums; }
+      .time-column span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #007aff; color: white; font-size: 10px; font-weight: 800; }
+      .place-body { position: relative; padding: 15px 16px; border: 1px solid rgba(60,60,67,.12); border-radius: 15px; background: white; }
       .place-title { display: flex; align-items: center; }
-      .place-title h3 { margin: 0; color: #173f36; font-family: Georgia, "Noto Serif KR", serif; font-size: 16px; }
-      .meta { margin: 5px 0 0; color: #818a85; font-size: 9px; }
-      .memo { margin: 10px 0 0; padding: 9px 11px; border-left: 3px solid #e2b369; border-radius: 0 8px 8px 0; background: #fbf6eb; color: #5e6963; font-size: 9px; line-height: 1.55; }
-      .candidates { margin-top: 11px; padding-top: 9px; border-top: 1px dashed #ddd6ca; }
-      .candidates h4 { margin: 0 0 6px; color: #88918c; font-size: 8px; letter-spacing: .06em; }
+      .place-title h3 { margin: 0; color: #1d1d1f; font: 600 16px/22px "Pretendard Variable", Pretendard, sans-serif; }
+      .meta { margin: 5px 0 0; color: #8e8e93; font-size: 9px; }
+      .memo { margin: 10px 0 0; padding: 9px 11px; border-left: 3px solid #007aff; border-radius: 0 8px 8px 0; background: #f2f7ff; color: #6e6e73; font-size: 9px; line-height: 1.55; }
+      .candidates { margin-top: 11px; padding-top: 9px; border-top: 1px dashed rgba(60,60,67,.16); }
+      .candidates h4 { margin: 0 0 6px; color: #8e8e93; font-size: 8px; letter-spacing: .06em; }
       .candidate { padding: 6px 0; }
-      .candidate + .candidate { border-top: 1px solid #f0ece5; }
+      .candidate + .candidate { border-top: 1px solid #f0f1f3; }
       .candidate > div { display: flex; flex-direction: column; gap: 2px; }
-      .candidate strong { color: #3d4c46; font-size: 10px; }
-      .candidate span, .candidate p { margin: 0; color: #87908b; font-size: 8px; line-height: 1.45; }
-      .candidate p { color: #626f68; }
-      footer { display: flex; justify-content: space-between; margin-top: 34px; padding: 14px 2px 0; border-top: 1px solid #ded7cb; color: #8b938e; font-size: 8px; }
+      .candidate strong { color: #3a3a3c; font-size: 10px; }
+      .candidate span, .candidate p { margin: 0; color: #8e8e93; font-size: 8px; line-height: 1.45; }
+      .candidate p { color: #6e6e73; }
+      footer { display: flex; justify-content: space-between; margin-top: 34px; padding: 14px 2px 0; border-top: 1px solid rgba(60,60,67,.12); color: #8e8e93; font-size: 8px; }
       @media screen and (max-width: 640px) {
         .sheet { padding: 12px; }
         .cover { min-height: auto; grid-template-columns: 1fr; gap: 24px; padding: 26px 22px 24px; border-radius: 18px; }
-        .cover:after { top: -92px; right: -90px; }
         .eyebrow { margin-bottom: 9px; font-size: 8px; }
         .cover h1 { font-size: clamp(28px, 9.5vw, 38px); line-height: 1.12; }
         .cover-copy > p { margin-top: 9px; font-size: 11px; }
@@ -2513,17 +2485,15 @@ export default function App() {
   };
 
   const appStyle = { "--sidebar-width": `${sidebarWidth}px` } as CSSProperties;
-  const googleMapsEnabled = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim());
-  const valueMapsEnabled = import.meta.env.VITE_MAP_PROVIDER?.trim().toLowerCase() === "mapbox"
-    && Boolean(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN?.trim());
+  const valueMapsEnabled = Boolean(process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim());
 
   if (!dataReady) return <main className="data-loading">여행 일정을 불러오는 중...</main>;
 
   return (
     <main className={`app-shell ${dragged ? "is-dragging" : ""}`} style={appStyle}>
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="SURABUL TOUR 홈">
-          <strong>SURABUL TOUR</strong>
+        <a className="brand" href="/" aria-label="Into the Blue 홈">
+          <strong><i aria-hidden="true">⌖</i> Into the Blue</strong>
           <span>MAP THE MOMENTS <i aria-hidden="true">·</i> KEEP THE JOURNEY</span>
         </a>
         <div className="trip-title"><strong>{trip.name}</strong>{tripDday && <b className="trip-dday" aria-label={`여행 시작일까지 ${tripDday}`}>{tripDday}</b>}<span className="trip-date-range">{tripDateRange}</span></div>
@@ -2686,10 +2656,10 @@ export default function App() {
 
       <section className="map-panel">
         <MapView places={places} unscheduledCandidates={unscheduledCandidates} searchResults={mapSearchResults} selectedId={selected?.id ?? ""} focusPoint={focusPoint} onSelect={selectMapItem} onComment={openMapComments} onEdit={openMapEdit} commentCounts={commentCounts} getReviewUrl={googleReviewsUrl} visibleCategories={visibleCategories} showPinNotes={showPinNotes} onCategoryOnly={showOnlyCategory} valueContext={{ tripId: trip.id, userId: user.id, name: userName, avatarUrl }} />
-        <div className="map-provider-note"><strong>{valueMapsEnabled ? "Mapbox + OSRM" : googleMapsEnabled ? "Google Maps" : "OpenStreetMap"}</strong><span>{valueMapsEnabled ? "자체 OSRM 자동차 경로 · Google 지도 로드 없음" : googleMapsEnabled ? "실제 도로를 따라 일정 경로 계산" : "Google API 키 연결 전 무료 지도 모드"}</span></div>
+        <div className="map-provider-note"><strong>{valueMapsEnabled ? "Mapbox · Faded" : "Mapbox 연결 대기"}</strong><span>{valueMapsEnabled ? "OSRM 자동차 경로 · Google Places 장소 검색" : "공개 토큰을 연결하면 지도가 표시됩니다"}</span></div>
         <div className="map-overlay-top"><button className="mobile-schedule-button" onClick={() => setMobileSchedule(true)}>☰ <span>{relativeDateLabel(selectedDate, today)} 일정</span></button><div className="map-overlay-controls"><div className="route-legend"><span className="route-line" /> 확정 일정 경로 <small>{places.length}곳 · 후보 {totalCandidates}곳 · 날짜 미정 {unscheduledCandidates.length}곳{mapSearchResults.length ? ` · 검색 ${mapSearchResults.length}곳` : ""}</small></div><div className={`map-category-filter ${categoryFilterOpen ? "is-open" : "is-collapsed"}`} role="group" aria-label="지도 카테고리 필터"><button className="map-category-toggle" onClick={() => setCategoryFilterOpen((open) => !open)} aria-expanded={categoryFilterOpen} aria-controls="map-category-filter-items"><span aria-hidden="true">⚲</span><strong>필터</strong><i aria-hidden="true">{categoryFilterOpen ? "⌃" : "⌄"}</i></button>{categoryFilterOpen && <div id="map-category-filter-items">{PLACE_CATEGORIES.map((category) => <button key={category.value} className={visibleCategories.includes(category.value) ? "active" : ""} onClick={() => toggleCategoryFilter(category.value)} aria-pressed={visibleCategories.includes(category.value)}><span aria-hidden="true">{category.icon}</span>{category.label}</button>)}<button className={`map-note-filter ${showPinNotes ? "active" : ""}`} onClick={() => setShowPinNotes((visible) => !visible)} aria-pressed={showPinNotes}><span aria-hidden="true">▤</span>메모</button></div>}</div></div></div>
         {selected && (selectedPlaceIndex > 0 || previousDate || selectedPlaceIndex < places.length - 1 || nextDate) && <div className="map-itinerary-navigation" aria-label="선택한 일정 지도 이동"><button onClick={() => navigateMapSchedule(-1)} disabled={selectedPlaceIndex <= 0 && !previousDate} aria-label="이전 일정으로 이동">‹</button><div><strong>{selectedPlaceIndex + 1} / {places.length}</strong><span>{selected.title}</span></div><button onClick={() => navigateMapSchedule(1)} disabled={selectedPlaceIndex >= places.length - 1 && !nextDate} aria-label="다음 일정으로 이동">›</button></div>}
-        <div className="map-credit">{valueMapsEnabled ? "Mapbox © · 도로 경로 데이터 © OpenStreetMap contributors" : googleMapsEnabled ? "확정 일정은 실제 도로 경로 · 후보도 클릭해 상세 보기" : "확정 일정만 직선으로 연결 · 후보는 회색 마커로 표시"}</div>
+        <div className="map-credit">Mapbox © · 도로 경로 데이터 © OpenStreetMap contributors</div>
       </section>
 
       <nav className="mobile-view-switcher" aria-label="모바일 화면 전환"><button className={mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(true)}><span>☷</span>일정</button><button className={!mobileSchedule ? "active" : ""} onClick={() => setMobileSchedule(false)}><span>⌖</span>지도</button></nav>

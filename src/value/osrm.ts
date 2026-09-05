@@ -20,7 +20,8 @@ export async function fetchDrivingRoute(
   const accessToken = data.session?.access_token;
   if (!accessToken) throw new Error("경로 계산에는 로그인이 필요합니다.");
 
-  const endpoint = import.meta.env.VITE_ROUTE_API_URL?.trim() || "/api/value/route";
+  const endpoint = process.env.NEXT_PUBLIC_ROUTE_API_URL?.trim();
+  if (!endpoint) throw new Error("경로 서버 주소가 설정되지 않았습니다.");
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
